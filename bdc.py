@@ -7,16 +7,13 @@ from functools import reduce
 import json
 
 class Book:
-    def __init__(self, name, dictionary):
-        self.name = name
-        self.file = name + ".json"
+    def __init__(self):
         self.dirty = False
-        self.dict = dictionary
         self.words = []
         self.queue = []
         self.iter = 0
 
-    def add(word):
+    def add(self, word, content):
         self.words.append({
             "word" : word,
             #出现次数
@@ -28,26 +25,30 @@ class Book:
             #熟练度, 0 - 100
             "proficiency" : 0,
             #单词详细信息
-            "content" : self.dict[word]
+            "content" : content
         })
 
-    def load(self):
-        if os.path.exists(self.file):
-            f = open(self.file)
+    def load(self, account):
+        file = os.path.join("save", account + ".json")
+        if os.path.exists(file):
+            f = open(file)
             try:
                 self.words = json.load(f)
             except Exception as e:
                 print("%s line = %d, position = %d" % (e.msg, e.lineno, e.pos))
+                return False
             
             f.close
+            return True
 
-    def save(self):
+        return False
+
+    def save(self, account):
         if not self.dirty:
             return
 
-        f = open(self.file, "w")
-        json.dump(self.words, f, indent = "  ", skipkeys=("content"))
-        f.close()
+        with open(os.path.join("save", account + ".json"), "w") as fs:
+            json.dump(self.words, fs, indent = "  ", skipkeys=("content"))
 
     def __iter__(self):
         self.iter = 0
@@ -77,7 +78,7 @@ class Dictionary:
         self.dirty = False
 
         if not os.path.isdir("pronunciation"):
-        os.mkdir("pronunciation")
+            os.mkdir("pronunciation")
         
         if not os.path.isdir("pronunciation/en"):
             os.mkdir("pronunciation/en")
@@ -95,7 +96,7 @@ class Dictionary:
             f.close
 
     #下载音标文件
-    def download_file(url, out):
+    def download(url, out):
         try:
             if url.startswith("http://") or url.startswith("https://"):
                 urllib.request.urlretrieve(url, out)
@@ -106,7 +107,7 @@ class Dictionary:
             return False
 
     #获得页面数据
-    def get_page(word):
+    def getPage(word):
         try:
             basurl='http://cn.bing.com/dict/search?q='
             searchurl=basurl+word.replace(' ', '+')
@@ -118,7 +119,7 @@ class Dictionary:
             return None
 
     #获得单词释义
-    def get_explains(html_selector):
+    def getExplains(html_selector):
         explains=[]
         hanyi_xpath='/html/body/div[1]/div/div/div[1]/div[1]/ul/li'
         get_hanyi=html_selector.xpath(hanyi_xpath)
@@ -130,7 +131,7 @@ class Dictionary:
         return explains
 
     #获得单词音标和读音连接
-    def get_pronunciation(html_selector, word):
+    def getPronunciation(html_selector, word):
         pronunciation={}
         pronunciation_xpath='/html/body/div[1]/div/div/div[1]/div[1]/div[1]/div[2]/div'
         bbb="(https\\:.*?mp3)"
@@ -141,10 +142,10 @@ class Dictionary:
             if len(it)>0:
                 voice=reobj1.findall(it[1].xpath('a')[0].get('onmouseover',None))
                 pronunciation["us"] = it[0].text
-                download_file(voice[0], "./pronunciation/us/" + word + ".mp3")
+                Dictionary.download(voice[0], "./pronunciation/us/" + word + ".mp3")
                 voice=reobj1.findall(it[3].xpath('a')[0].get('onmouseover',None))
                 pronunciation["en"] = it[2].text
-                download_file(voice[0], "./pronunciation/en/" + word + ".mp3")
+                Dictionary.download(voice[0], "./pronunciation/en/" + word + ".mp3")
 
         return pronunciation
 
@@ -166,35 +167,38 @@ class Dictionary:
     def getWord(word):
         content = {}
         #获得页面
-        page=get_page(word)
+        page=Dictionary.getPage(word)
         if page != None:
             selector = etree.HTML(page.decode('utf-8'))
             #单词释义
-            content["explain"] = get_explains(selector)
+            content["explain"] = Dictionary.getExplains(selector)
             #单词音标及读音
-            content["pronunciation"] = get_pronunciation(selector, word) 
+            content["pronunciation"] = Dictionary.getPronunciation(selector, word) 
             #例句
-            content["example"] = getExample(selector)
+            content["example"] = Dictionary.getExample(selector)
 
         return content
 
-    def newBook(self, words):
+    def newBook(self, name):
         book = Book()
 
-        for word in words:
-            if not self.words.__contains__(word):    
-                time.sleep(0.2)
-                print("loading %s" % (word))
-                info = getWord(word.rstrip())
+        file = os.path.join("book", name + ".txt")
+        with open(file, "r") as fs:
+            words = map(lambda x : x if x[-1] != '\n' else x[:-1], fs.readlines())
+            for word in words:
+                if not self.words.__contains__(word):    
+                    time.sleep(0.2)
+                    print("loading %s" % (word))
+                    info = Dictionary.getWord(word.rstrip())
 
-                self.words[word] = info
-                self.dirty = True
+                    self.words[word] = info
+                    self.dirty = True
 
-            book.add(self.words[word])
+                book.add(word, self.words[word])
 
         return book
 
-    def Save(self):
+    def save(self):
         if not self.dirty:
             return
 
@@ -202,28 +206,14 @@ class Dictionary:
         json.dump(self.words, f, indent = "  ")
         f.close()
 
-d = Dictionary('default')
-b = Book('M1U1', d)
-
-pygame.init()
-
-screen = pygame.display.set_mode((800, 600), 0, 32)
-font = pygame.font.SysFont("SimHei", 32)
-str=""
-for i in range(32, 126):
-    str += chr(i)
-
-image = font.render(str, True, [255,255,255])
-image_rect = image.get_rect()
-letter_w = image_rect.width / 94
-letter_h = image_rect.height
-
 class Letter(pygame.sprite.Sprite):
     def __init__(self, char=None):
         pygame.sprite.Sprite.__init__(self)
+        index = ord(char)
+        self.char = char
         self.last = 0
-        self.texture = image
-        self.rect = (0, 0, letter_w, letter_h)
+        self.texture = letters[index] if index >= 32 and index < 127 else letters[0]
+        self.rect = self.texture.get_rect()
         self.char = char
         self.letter('_')
     
@@ -242,29 +232,41 @@ class Letter(pygame.sprite.Sprite):
 
         self.image = self.texture.subsurface(rect)
 
-    def update(self, time, rate=600):
-        if time > self.last + rate:
-            self.last = self.last + rate
-
     def correct(self):
         letter(self.char)
 
-letter = Letter('a')
-group = pygame.sprite.Group()
-group.add(letter)
+pygame.init()
 
-while True:
+screen = pygame.display.set_mode((800, 600), 0, 32)
+font = pygame.font.SysFont("SimHei", 32)
+letters = []
+
+for i in range(32, 127):
+    letters.append(font.render(chr(i), True, [255,255,255]))
+
+group = pygame.sprite.Group()
+
+d = Dictionary("Bing")
+b = d.newBook("M1U1")
+b.load("xuchenhao")
+d.save()
+
+running = True
+
+while running:
     tick = pygame.time.get_ticks()
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            exit()
+            running = False
 
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            exit()
+            running = False
 
     screen.fill((0,0,0))
     group.update(tick)
     group.draw(screen)
 
     pygame.display.update()
+
+b.save("xuchenhao")
