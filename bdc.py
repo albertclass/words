@@ -7,11 +7,8 @@ from functools import reduce
 import json
 
 class Book:
-    def __init__(self, name, dictionary):
-        self.name = name
-        self.file = name + ".json"
+    def __init__(self):
         self.dirty = False
-        self.dict = dictionary
         self.words = []
         self.iter = 0
 
@@ -49,13 +46,16 @@ class Book:
                 self.words = json.load(f)
             except Exception as e:
                 print("%s line = %d, position = %d" % (e.msg, e.lineno, e.pos))
+                return False
             
             f.close
             return True
 
         return False
 
-    def save(self):
+        return False
+
+    def save(self, account):
         if not self.dirty:
             return True
 
@@ -205,14 +205,14 @@ class Dictionary:
                 print("loading %s" % (word))
                 info = Dictionary.getWord(word.rstrip())
 
-                self.words[word] = info
-                self.dirty = True
+                    self.words[word] = info
+                    self.dirty = True
 
             book.add(word, self.words[word])
 
         return book
 
-    def Save(self):
+    def save(self):
         if not self.dirty:
             return
 
@@ -236,6 +236,8 @@ letter_h = image_rect.height
 class Letter(pygame.sprite.Sprite):
     def __init__(self, char=None, x = 0, y = 0):
         pygame.sprite.Sprite.__init__(self)
+        index = ord(char)
+        self.char = char
         self.last = 0
         self.texture = image
         self.rect = (x, y, letter_w, letter_h)
@@ -319,15 +321,22 @@ for w in b:
 
 g = Word('albert')
 
-while True:
+d = Dictionary("Bing")
+b = d.newBook("M1U1")
+b.load("xuchenhao")
+d.save()
+
+running = True
+
+while running:
     tick = pygame.time.get_ticks()
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            exit()
+            running = False
 
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            exit()
+            running = False
 
         if event.type == pygame.KEYUP:
             if event.key > pygame.K_FIRST and event.key < pygame.K_LAST:
@@ -338,3 +347,5 @@ while True:
     group.draw(screen)
 
     pygame.display.update()
+
+b.save("xuchenhao")
