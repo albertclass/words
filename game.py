@@ -1,6 +1,9 @@
 import os, sys, pygame
 
 pygame.init()
+str = "1234567890"
+lst = [ord(ch) for ch in str]
+print(lst)
 
 screen = pygame.display.set_mode((800, 600), 0, 32)
 font = pygame.font.SysFont("SimHei", 32)
