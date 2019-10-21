@@ -1,22 +1,28 @@
-import os, sys, pygame
-import urllib.request
-from lxml import etree
-import re 
-import time
-from functools import reduce
 import json
+import os
+import re
+import sys
+import time
+import urllib.request
+from functools import reduce
+
+import pygame
+from lxml import etree
+
 
 class Book:
-    def __init__(self):
+    def __init__(self, name, dictionary):
         self.dirty = False
         self.words = []
+        self.name = name
         self.iter = 0
+        self.dictionary = dictionary
 
     def isEmpty(self):
         return len(self.words) == 0
 
     def add(self, word, content):
-        self.words.append({
+        props = {
             "word" : word,
             #出现次数
             "count" : 0,
@@ -28,14 +34,16 @@ class Book:
             "proficiency" : 0,
             #单词详细信息
             "content" : content
-        })
+        }
+
+        self.words.append(type('Word', (object,), props))
 
     def new(self):
         f = open(os.path.join("book", self.name + ".txt"))
         try:
             lines = f.readlines()
             words = [ln[:-1] for ln in lines]
-            self.dict.newBook(words, self)
+            self.dictionary.newBook(words, self)
         except Exception as e:
             print(e)
 
@@ -53,14 +61,12 @@ class Book:
 
         return False
 
-        return False
-
     def save(self, account):
         if not self.dirty:
             return True
 
         f = open(self.file, "w")
-        json.dump(self.words, f, indent = "  ", skipkeys=("content"))
+        json.dump(self.words.__dict__, f, indent = "  ", skipkeys=("content", "proficiency"))
         f.close()
         return True
 
@@ -73,8 +79,8 @@ class Book:
             raise StopIteration
         
         while len(self.words):
-            word = self.words[self.iter]
-            if word['proficiency'] >= 90:
+            word = self.words[self.iter % len(self.words)]
+            if word.proficiency >= 1:
                 del self.words[self.iter]
             else:
                 self.iter += 1
@@ -205,8 +211,8 @@ class Dictionary:
                 print("loading %s" % (word))
                 info = Dictionary.getWord(word.rstrip())
 
-                    self.words[word] = info
-                    self.dirty = True
+                self.words[word] = info
+                self.dirty = True
 
             book.add(word, self.words[word])
 
@@ -238,114 +244,118 @@ class Letter(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         index = ord(char)
         self.char = char
+        self.type = char
         self.last = 0
         self.texture = image
         self.rect = (x, y, letter_w, letter_h)
-        self.char = char
         self.letter('_')
     
     def letter(self, char):
         if char == None:
             return
-
+        
         ch = ord(char)
+        if ch >= ord(' ') and ch <= ord('~'):
+            self.type = char
 
-        if ch < ord(' ') or ch > ord('~'):
-            return
+            ch -= ord(' ')
+            self.image = self.texture.subsurface((ch * letter_w, 0, letter_w, letter_h))
 
-        ch -= ord(' ')
-
-        rect = (ch * letter_w, 0, letter_w, letter_h)
-
-        self.image = self.texture.subsurface(rect)
-
-    def check(self, char):
-        if char == self.char:
-            self.letter(char)
-            return True
-
+    def reset(self):
+        self.letter('_')
+        
+    def press(self, char):
         if char == pygame.K_BACKSPACE:
             self.letter('_')
 
         if char == pygame.K_DELETE:
             self.letter('_')
-    
-        return False
+
+        self.letter(char)
 
     def update(self, time, rate=600):
-        if time > self.last + rate:
-            self.last = self.last + rate
+        if time > self.last + rate and self.char != self.type:
+            self.last = time
+            self.reset()
 
     def correct(self):
-        self.letter(self.char)
+        self.type == self.char
 
-class Word(pygame.sprite.Group):
+class CharSequence(pygame.sprite.Group):
     def __init__(self, word, x, y):
-        pygame.sprite.Group.__init__()
-        self.word = []
+        pygame.sprite.Group.__init__(self)
+        self.sequence = []
+        self.judge = False
         self.x = x - len(word) * (letter_w + 1) / 2
         self.y = y - letter_h / 2
         for ch in word:
-            self.word.append(Letter(ch, x, y))
+            self.sequence.append(Letter(ch, x, y))
             x += letter_w + 1
 
         # add to group
-        for letter in self.word:
+        for letter in self.sequence:
             self.add(letter)
 
         self.cursor = 0
 
-        for ch in word:
-            self.add(Letter(ch, x, y))
-            x += letter_w
-
-    def type(self, char):
-        if len(self.word) == self.cursor:
-            return
-
-        if self.word[self.cursor].check(char):
-            self.cursor += 1
-        elif char == pygame.K_BACKSPACE:
+    def press(self, char):
+        if char == pygame.K_BACKSPACE:
             self.cursor -= 1
+            self.sequence[self.cursor].reset()
+        elif char == pygame.K_RETURN:
+            # judge word is correct
+            for ch in self.sequence:
+                if not ch.correct():
+                    break
+            else:
+                self.judge = True
+        elif self.cursor < len(self.sequence):
+            if self.sequence[self.cursor].press(char if type(char) == "str" else chr(char)):
+                self.cursor += 1
 
-    def complated(self):
-        return len(self.word) == self.cursor
+    def correct(self):
+        return self.judge
 
 d = Dictionary('default')
 b = Book('M1U1', d)
 if b.isEmpty():
     b.new()
 
-for w in b:
-    print(w['word'])
-
-g = Word('albert')
-
-d = Dictionary("Bing")
-b = d.newBook("M1U1")
-b.load("xuchenhao")
 d.save()
 
-running = True
+correct = False
 
-while running:
-    tick = pygame.time.get_ticks()
+for w in b:
+    s = CharSequence(w.word, 400, 300)
+    w.count += 1
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+    while not s.correct():
+        tick = pygame.time.get_ticks()
 
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            running = False
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
 
-        if event.type == pygame.KEYUP:
-            if event.key > pygame.K_FIRST and event.key < pygame.K_LAST:
-                pass
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                running = False
 
-    screen.fill((0,0,0))
-    group.update(tick)
-    group.draw(screen)
 
-    pygame.display.update()
+
+            if event.type == pygame.KEYUP:
+                if event.key > pygame.K_FIRST and event.key < pygame.K_LAST:
+                    s.press(event.key)
+
+        screen.fill((0,0,0))
+        s.update(tick)
+        s.draw(screen)
+
+        pygame.display.update()
+    else:
+        w.right += 1
+        w.proficiency += 0.4
+
+else:
+    print("finished.")
+    pass
 
 b.save("xuchenhao")
