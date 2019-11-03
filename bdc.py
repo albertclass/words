@@ -15,6 +15,7 @@ class Book:
         self.dirty = False
         self.words = []
         self.name = name
+        self.file = name + ".json"
         self.iter = 0
         self.dictionary = dictionary
 
@@ -31,7 +32,7 @@ class Book:
             #正确次数，错误时重置该值
             "right" : 0,
             #熟练度, 0 - 100
-            "proficiency" : 0,
+            "proficiency" : 100,
             #单词详细信息
             "content" : content
         }
@@ -62,11 +63,8 @@ class Book:
         return False
 
     def save(self, account):
-        if not self.dirty:
-            return True
-
         f = open(self.file, "w")
-        json.dump(self.words.__dict__, f, indent = "  ", skipkeys=("content", "proficiency"))
+        json.dump(self.words, f, indent = "  ", skipkeys=("content", "proficiency"))
         f.close()
         return True
 
@@ -80,8 +78,8 @@ class Book:
         
         while len(self.words):
             word = self.words[self.iter % len(self.words)]
-            if word.proficiency >= 1:
-                del self.words[self.iter]
+            if word.proficiency > 100:
+                del self.words[self.iter % len(self.words)] 
             else:
                 self.iter += 1
                 return word
@@ -226,18 +224,17 @@ class Dictionary:
         json.dump(self.words, f, indent = "  ")
         f.close()
 
-pygame.init()
+class Sprite(pygame.sprite.Sprite):
+    def __init__(self, image, x = 0, y = 0):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = image
+        self.rect = pygame.Rect(x, y, self.image.get_rect().width, self.image.get_rect().height)
+    
+    def height(self):
+        return self.rect.height
 
-screen = pygame.display.set_mode((800, 600), 0, 32)
-font = pygame.font.SysFont("SimHei", 32)
-str=""
-for i in range(32, 126):
-    str += chr(i)
-
-image = font.render(str, True, [255,255,255])
-image_rect = image.get_rect()
-letter_w = image_rect.width / 94
-letter_h = image_rect.height
+    def width(self):
+        return self.rect.width
 
 class Letter(pygame.sprite.Sprite):
     def __init__(self, char=None, x = 0, y = 0):
@@ -248,9 +245,9 @@ class Letter(pygame.sprite.Sprite):
         self.last = 0
         self.texture = image
         self.rect = (x, y, letter_w, letter_h)
-        self.letter('_')
+        self.set('_')
     
-    def letter(self, char):
+    def set(self, char):
         if char == None:
             return
         
@@ -262,32 +259,23 @@ class Letter(pygame.sprite.Sprite):
             self.image = self.texture.subsurface((ch * letter_w, 0, letter_w, letter_h))
 
     def reset(self):
-        self.letter('_')
+        self.set('_')
         
     def press(self, char):
-        if char == pygame.K_BACKSPACE:
-            self.letter('_')
-
-        if char == pygame.K_DELETE:
-            self.letter('_')
-
-        self.letter(char)
-
-    def update(self, time, rate=600):
-        if time > self.last + rate and self.char != self.type:
-            self.last = time
-            self.reset()
+        self.set(char)
 
     def correct(self):
-        self.type == self.char
+        return self.type == self.char
 
 class CharSequence(pygame.sprite.Group):
     def __init__(self, word, x, y):
         pygame.sprite.Group.__init__(self)
         self.sequence = []
-        self.judge = False
         self.x = x - len(word) * (letter_w + 1) / 2
         self.y = y - letter_h / 2
+        self.judge = False
+        self.complate = False
+
         for ch in word:
             self.sequence.append(Letter(ch, x, y))
             x += letter_w + 1
@@ -299,22 +287,89 @@ class CharSequence(pygame.sprite.Group):
         self.cursor = 0
 
     def press(self, char):
-        if char == pygame.K_BACKSPACE:
-            self.cursor -= 1
+        if self.cursor < len(self.sequence):
+            self.sequence[self.cursor].press(char if type(char) == "str" else chr(char))
+            self.cursor += 1
+
+    def delete(self):
+        if self.cursor >= 0 and self.cursor < len(self.sequence):
             self.sequence[self.cursor].reset()
-        elif char == pygame.K_RETURN:
+
+    def backspace(self):
+        if self.cursor > 0:
+            self.cursor -= 1
+            self.delete()
+
+    def check(self):
+        if not self.judge:
             # judge word is correct
             for ch in self.sequence:
                 if not ch.correct():
                     break
             else:
                 self.judge = True
-        elif self.cursor < len(self.sequence):
-            if self.sequence[self.cursor].press(char if type(char) == "str" else chr(char)):
-                self.cursor += 1
 
-    def correct(self):
+            self.complate = True
+
         return self.judge
+
+    def complated(self):
+        return self.complate
+
+class Pronunciation(pygame.sprite.Group):
+    def __init__(self, content, x, y, font):
+        pygame.sprite.Group.__init__(self)
+        self.x = x
+        self.y = y
+
+        ch = content["pronunciation"]["en"]
+        en = Sprite(font.render(ch, True, [255,255,255]), x, y)
+        ch = content["pronunciation"]["us"]
+        us = Sprite(font.render(ch, True, [255,255,255]), x, y + en.height())
+        
+        self.add(en)
+        self.add(us)
+
+class Explain(pygame.sprite.Group):
+    def __init__(self, content, x, y, font):
+        pygame.sprite.Group.__init__(self)
+        self.x = x
+        self.y = y
+
+        for exp in content["explain"]:
+            self.add(Sprite(font.render(exp, True, [255,255,255]), x, y))
+            y += 30
+
+class Example(pygame.sprite.Group):
+    def __init__(self, content, x, y, font):
+        pygame.sprite.Group.__init__(self)
+        self.x = x
+        self.y = y
+
+        for exp in content["example"]:
+            self.add(Sprite(font.render(exp, True, [255,255,255]), x, y))
+            y += 30
+
+pygame.mixer.init()
+pygame.mixer.pre_init(44100, -16, 2, 2048)
+pygame.init()
+
+screen = pygame.display.set_mode((800, 600), 0, 32)
+font = [
+    pygame.font.SysFont("SimHei", 20),
+    pygame.font.SysFont("SimHei", 32), # Arial,Helvetica,Sans-Serif
+    pygame.font.SysFont("Arial", 24),
+]
+
+str=""
+for i in range(32, 126):
+    str += chr(i)
+
+image = font[1].render(str, True, [255,255,255])
+image_rect = image.get_rect()
+letter_w = image_rect.width / 94
+letter_h = image_rect.height
+sound = "en"
 
 d = Dictionary('default')
 b = Book('M1U1', d)
@@ -323,37 +378,71 @@ if b.isEmpty():
 
 d.save()
 
-correct = False
+running = True
+
+mp3 = ""
 
 for w in b:
-    s = CharSequence(w.word, 400, 300)
+    s = CharSequence(w.word, 400, 540)
     w.count += 1
+    factor = 0.1
 
-    while not s.correct():
+    p = Pronunciation(w.content, 10, 10, font[2])
+    e = Explain(w.content, 10, 70, font[0])
+
+    mp3 = "./pronunciation/" + sound + "/" + w.word + ".mp3"
+    if os.path.exists(mp3):
+        pygame.mixer.music.load(mp3)
+        pygame.mixer.music.play()
+    
+    while running and not s.complated():
         tick = pygame.time.get_ticks()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                running = False
-
-
-
-            if event.type == pygame.KEYUP:
-                if event.key > pygame.K_FIRST and event.key < pygame.K_LAST:
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_BACKSPACE:
+                    s.backspace()
+                elif event.key == pygame.K_DELETE:
+                    s.delete()
+                elif event.key == pygame.K_RETURN:
+                    s.check()
+                else:
                     s.press(event.key)
 
         screen.fill((0,0,0))
+        # y = 100
+        # for img in uniimg:
+        #     screen.blit(img, (0, y))
+        #     y += 30
+
+        screen.blit(font[0].render("评价：%.1f 分" % (w.proficiency), True, (255,255,255)), (300, 10))
+        screen.blit(font[0].render("用时：%5.2f 秒" % (tick/1000), True, (255,255,255)), (580, 10))
+        
         s.update(tick)
         s.draw(screen)
 
-        pygame.display.update()
-    else:
-        w.right += 1
-        w.proficiency += 0.4
+        p.update(tick)
+        p.draw(screen)
 
+        e.update(tick)
+        e.draw(screen)
+
+        pygame.display.update()
+        pygame.display.flip()
+
+    if not running:
+        break
+
+    if s.check():
+        w.right += 1
+        w.proficiency += 1
+    else:
+        w.wrong += 1
 else:
     print("finished.")
     pass
