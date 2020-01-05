@@ -1,18 +1,25 @@
 {
   "name": "words",
   "version": "1.0.0",
-  "description": "������",
+  "description": "我要背单词",
   "main": "index.js",
   "scripts": {
     "start": "electron .",
-    "test": "test"
+    "test": "test",
+    "rebuild": "electron-rebuild -f -w sqlite3"
   },
   "keywords": [
     "word"
   ],
   "author": "albert.xu",
   "license": "ISC",
+  "dependencies": {
+    "electron": "^7.1.7",
+    "nan": "^2.14.0",
+    "sqlite3": "^4.1.1",
+    "xpath": "0.0.27"
+  },
   "devDependencies": {
-    "electron": "^7.1.1"
+    "electron-rebuild": "^1.8.8"
   }
 }
