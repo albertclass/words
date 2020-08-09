@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require("electron")
+const { app, BrowserWindow, Menu, dialog } = require("electron")
 const ipc = require('electron').ipcRenderer
 const fs = require('fs')
 const xpath = require('xpath')
@@ -6,7 +6,7 @@ const http = require('http')
 const sqlite3 = require('sqlite3')
 
 let win
-
+let dict
 let task = {
     total : 0,
     words : {
@@ -14,13 +14,19 @@ let task = {
     }
 }
 
-let dict = new sqlite3.Database("dict.db", (err) => {
-    if (err) {
-        console.log(err)
-        return
+let menuTemplate = [
+    {
+        label: 'File',
+        submenu: [
+            { label: 'Load', click : (event, focusedWindow, focusedWebContents) => app.emit('file-load', event, focusedWindow, focusedWebContents)},
+            { type: 'separator'},
+            { role: 'quit'}
+        ]
     }
+]
 
-    dict.run('CREATE TABLE IF NOT EXIST "main"."dict"(\
+let sqls = [
+    'CREATE TABLE IF NOT EXISTS "main"."dict"(\
         "id" integer not null primary key autoincrement,\
         "word" text,\
         "symbol" text,\
@@ -28,50 +34,47 @@ let dict = new sqlite3.Database("dict.db", (err) => {
         "example" text,\
         "en" blob,\
         "us" blob\
-    );', (res, err) => {
-        if (err) {
-            console.log(err)
-            return
-        }
+    );',
 
-        console.log(res)
-    })
-
-    dict.run('CREATE TABLE IF NOT EXIST "main"."user"(\
+    'CREATE TABLE IF NOT EXISTS "main"."user"(\
         "id" integer not null primary key autoincrement,\
         "username" text,\
         "password" text,\
         "nickname" text,\
         "lastbook" text\
-    );', (res, err) => {
-        if (err) {
-            console.log(err)
-            return
-        }
+    );',
 
-        console.log(res)
-    })
-
-    
-    dict.run('CREATE TABLE IF NOT EXIST "main"."examine"(\
+    'CREATE TABLE IF NOT EXISTS "main"."examine"(\
         "userid" integer not null,\
         "bookname" text,\
         "examine" text,\
-        PARIMARY KEY(userid, bookname)\
-    );', (res, err) => {
+        PRIMARY KEY(userid, bookname)\
+    );'
+]
+
+function initDatabase(cb) {
+    dict = new sqlite3.Database("dict.db", (err) => {
         if (err) {
             console.log(err)
             return
         }
 
-        console.log(res)
+        Promise.all(sqls.map((sql) => new Promise(function(resolve, reject) {
+            dict.run(sql, (err) => {
+                if (err) {
+                    reject(err)
+                } else {
+                    resolve()
+                }
+            })
+        }))).then(cb)
     })
-})
+}
 
-function new_book(user, book, words) {
+function new_book(user, bookname, examine) {
     dict.run('replace into \
     "main"."examine" (userid, bookname, examine) \
-    values (${user}, "${book}", "${words}");', (res, err) => {
+    values (${user}, "${bookname}", "${examine}");', (res, err) => {
         if (err) {
             console.log(err)
             return
@@ -81,7 +84,7 @@ function new_book(user, book, words) {
     })
 }
 
-function load_page(word) {
+function load_page(word, cb) {
     const options = {
         hostname: "cn.bing.com",
         port: 80,
@@ -105,17 +108,44 @@ function load_page(word) {
         })
 
         res.on("end", () => {
+            load_symbol(buf)
             load_pronunciation(buf)
             load_explain(buf)
-            load_example(buf)
         })
     })
 
     req.end()
 }
 
-function load(word) {
+function load_symbol(buf) {
 
+}
+
+function load_pronunciation(buf) {
+
+}
+
+function load_explain(buf) {
+
+}
+
+function load(word, cb) {
+    let stat = dict.get("select word, symbol, explain, example, en, us from dict where word = '?'", word, (err, row) => {
+        if (err) {
+            load_page(word, cb)
+        } else if (row != null) {
+            task.words[word] = row
+            cb()
+        } else {
+            load_page(word, cb)
+        }
+    })
+}
+
+function load_book(filename) {
+    buf = fs.readFileSync(filename)
+    all = buf.toString().split(/[\t\r\n ]/, -1).filter((v) => v.length > 0)
+    all.forEach(word => { load(word) })
 }
 
 function createWindow() {
@@ -128,18 +158,21 @@ function createWindow() {
         }
     })
 
+    Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate))
+    
     win.loadFile("index.html")
-
-    buf = fs.readFileSync("book.txt")
-    all = buf.toString().split("[\t\n ]")
-    for (word in all) {
-        load(word)
-    }
-
     win.on('close', () => {
         win = null
     })
 }
+
+initDatabase((err) => {
+    if (err.filter((err) => err ? true : false).length > 0) {
+        console.log(err)
+    } else {
+        console.log('database initialize successful.')
+    }
+});
 
 // Electron 会在初始化后并准备
 // 创建浏览器窗口时，调用这个函数。
@@ -161,4 +194,25 @@ app.on('activate', () => {
     if (win === null) {
         createWindow()
     }
+})
+
+app.on('file-load', (event, focusedWindow, focusedWebContents) => {
+    dialog.showOpenDialog({
+        title: '选择要背诵的单词书', 
+        filters: [
+            { name: '单词表', extensions: ['txt'] },
+            { name: '所有文件', extensions: ['*'] }
+        ],
+        properties:['openFile']
+    }).then(result=>{
+        if (result.canceled) {
+            return
+        }
+        
+        result.filePaths.forEach(path => {
+            load_book(path)
+        })
+    }).catch(err => {
+        console.log(err)
+    })
 })

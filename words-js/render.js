@@ -22,6 +22,7 @@ document.onkeydown = function(e) {
 
     if (keycode == 0x0a) {
         ipc.emit("confirm", inputSpan.innerText)
+        inputSpan.innerText = ""
     }
 
     if (keycode == 0x1b) {
