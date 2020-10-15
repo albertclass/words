@@ -1,5 +1,5 @@
-const { app, BrowserWindow, Menu, dialog } = require("electron")
-const ipc = require('electron').ipcRenderer
+const { app, BrowserWindow, Menu, dialog, webContents } = require("electron")
+const ipc = require("electron").ipcMain
 const fs = require('fs')
 const xpath = require('xpath')
 const http = require('http')
@@ -164,7 +164,15 @@ function createWindow() {
     win.on('close', () => {
         win = null
     })
+
+    win.webContents.on('did-finish-load', (event, args) => {
+        console.log('webContents load finished.')
+    })
 }
+
+ipc.on('windowLoaded', (event) => {
+    event.sender.send('init', ['police', 'office', 'station'])
+})
 
 initDatabase((err) => {
     if (err.filter((err) => err ? true : false).length > 0) {

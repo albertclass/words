@@ -9,7 +9,7 @@
             "request": "launch",
             "name": "Electron Main",
             "stopOnEntry": false,
-            "program": "${workspaceRoot}/index.js",
+            "program": "${workspaceRoot}/main.js",
             "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron",
             "windows": {
                 "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron.cmd"

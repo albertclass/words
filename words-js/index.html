@@ -4,17 +4,12 @@
 
 <head>
   <link rel="stylesheet" type="text/css" href="css/style.css" />
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
   <title>我要背单词</title>
 </head>
-<style>
-</style>
-<script>
-  require('./render.js')
-</script> 
 
-<body>
-  <div class="outside">
+<body class="outline">
+  <div class="container">
     <div class="word">
       <h1>Word</h1>
       <div>
@@ -22,17 +17,21 @@
         <span>美</span><span id="us"></span>
       </div>
     </div>
+    <div class="line"></div>
     <div class="explain">
-      <div>
-        <ul id="explain">
-          <li>aaaa</li>
-        </ul>
-      </div>
+      <ul>
+        <li>Explain</li>
+      </ul>
     </div>
+    <div class="line"></div>
     <div class="textbox">
-      <span id="input">...........</span>
+      <div id="input" class="center outline">_ _ _ _ _ _ _ _ _</div>
     </div>
   </div>
 </body>
+
+<script>
+  require('render.js')
+</script> 
 
 </html>
