@@ -1,4 +1,4 @@
-const ipc = require('electron').ipcRenderer
+const {ipcRenderer} = require('electron')
 let words = ['police', 'office', 'station']
 let count = 0
 
@@ -74,10 +74,10 @@ function onKeyDown(e) {
     }
 }
 
-ipc.on('init', (event, args) => {
+ipcRenderer.on('init', (event, args) => {
     words = args
     next()
     document.addEventListener('keydown', onKeyDown)
 })
 
-ipc.send('windowLoaded')
+ipcRenderer.send('windowLoaded')

@@ -24,7 +24,7 @@
         },
 
         {
-            "type":"node",
+            "type":"pwa-chrome",
             "request":"attach",
             "name":"Electron Renderer",
             "protocol":"inspector",

@@ -22,6 +22,12 @@ let menuTemplate = [
             { type: 'separator'},
             { role: 'quit'}
         ]
+    },
+    {
+        label: 'Debug',
+        submenu: [
+            {label: 'Debug Window', click : (event, focusedWindow, focusedWebContents) => {win.openDevTools()}}
+        ]
     }
 ]
 
@@ -171,7 +177,7 @@ function createWindow() {
 }
 
 ipc.on('windowLoaded', (event) => {
-    event.sender.send('init', ['police', 'office', 'station'])
+    event.reply('init', ['police', 'office', 'station'])
 })
 
 initDatabase((err) => {
