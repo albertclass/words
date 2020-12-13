@@ -1,9 +1,8 @@
 const { app, BrowserWindow, Menu, dialog, webContents } = require("electron")
 const ipc = require("electron").ipcMain
 const fs = require('fs')
-const xpath = require('xpath')
 const http = require('http')
-const sqlite3 = require('sqlite3')
+const cheerio = require('cheerio')
 
 let win
 let dict
@@ -31,65 +30,6 @@ let menuTemplate = [
     }
 ]
 
-let sqls = [
-    'CREATE TABLE IF NOT EXISTS "main"."dict"(\
-        "id" integer not null primary key autoincrement,\
-        "word" text,\
-        "symbol" text,\
-        "explain" text,\
-        "example" text,\
-        "en" blob,\
-        "us" blob\
-    );',
-
-    'CREATE TABLE IF NOT EXISTS "main"."user"(\
-        "id" integer not null primary key autoincrement,\
-        "username" text,\
-        "password" text,\
-        "nickname" text,\
-        "lastbook" text\
-    );',
-
-    'CREATE TABLE IF NOT EXISTS "main"."examine"(\
-        "userid" integer not null,\
-        "bookname" text,\
-        "examine" text,\
-        PRIMARY KEY(userid, bookname)\
-    );'
-]
-
-function initDatabase(cb) {
-    dict = new sqlite3.Database("dict.db", (err) => {
-        if (err) {
-            console.log(err)
-            return
-        }
-
-        Promise.all(sqls.map((sql) => new Promise(function(resolve, reject) {
-            dict.run(sql, (err) => {
-                if (err) {
-                    reject(err)
-                } else {
-                    resolve()
-                }
-            })
-        }))).then(cb)
-    })
-}
-
-function new_book(user, bookname, examine) {
-    dict.run('replace into \
-    "main"."examine" (userid, bookname, examine) \
-    values (${user}, "${bookname}", "${examine}");', (res, err) => {
-        if (err) {
-            console.log(err)
-            return
-        }
-
-        console.log(res)
-    })
-}
-
 function load_page(word, cb) {
     const options = {
         hostname: "cn.bing.com",
@@ -108,44 +48,46 @@ function load_page(word, cb) {
 
         res.setEncoding('utf8')
 
-        buf = new Buffer()
+        buf = Buffer.from("")
         res.on("data", (chunk) => {
             buf += chunk
         })
 
         res.on("end", () => {
-            load_symbol(buf)
-            load_pronunciation(buf)
-            load_explain(buf)
+            let $ = cheerio.load(buf)
+            let obj = {}
+            load_symbol($, obj)
+            load_pronunciation($, obj)
+            load_explain($, obj)
         })
     })
 
     req.end()
 }
 
-function load_symbol(buf) {
+function load_symbol(doc, obj) {
+    obj["symbols"] = {}
+    obj.symbols["us"] = doc(".hd_prUS.b_primtxt").text()
+    obj.symbols["en"] = doc(".hd_pr.b_primtxt").text()
+}
+
+function load_pronunciation(doc, obj) {
+    obj["pronunciation"] = {}
+    let parse = function(str) {
+        if (str == null)
+            return null
+        
+        let found = str.match(/https:\/\/[\w.\/]*.mp3/g)
+        return found != null ? found[0] : null
+    }
+
+    obj.pronunciation["us"] = parse(doc(".hd_prUS.b_primtxt").next().children("a").attr("onclick"))
+    obj.pronunciation["en"] = parse(doc(".hd_pr.b_primtxt").next().children("a").attr("onclick"))
 
 }
 
-function load_pronunciation(buf) {
+function load_explain(doc, obj) {
 
-}
-
-function load_explain(buf) {
-
-}
-
-function load(word, cb) {
-    let stat = dict.get("select word, symbol, explain, example, en, us from dict where word = '?'", word, (err, row) => {
-        if (err) {
-            load_page(word, cb)
-        } else if (row != null) {
-            task.words[word] = row
-            cb()
-        } else {
-            load_page(word, cb)
-        }
-    })
 }
 
 function load_book(filename) {
@@ -177,16 +119,9 @@ function createWindow() {
 }
 
 ipc.on('windowLoaded', (event) => {
+    load_page('police', null)
     event.reply('init', ['police', 'office', 'station'])
 })
-
-initDatabase((err) => {
-    if (err.filter((err) => err ? true : false).length > 0) {
-        console.log(err)
-    } else {
-        console.log('database initialize successful.')
-    }
-});
 
 // Electron 会在初始化后并准备
 // 创建浏览器窗口时，调用这个函数。

@@ -27,7 +27,6 @@
             "type":"pwa-chrome",
             "request":"attach",
             "name":"Electron Renderer",
-            "protocol":"inspector",
             "port":9333
          }
     ],

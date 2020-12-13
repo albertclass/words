@@ -16,7 +16,6 @@ function beep() {
 
 function next() {
     if (count == words.length) {
-
         return true
     }
 
