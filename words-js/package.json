@@ -19,6 +19,6 @@
   },
   "devDependencies": {
     "cheerio": "^1.0.0-rc.3",
-    "electron": "^7.3.3"
+    "electron": "^9.4.0"
   }
 }
