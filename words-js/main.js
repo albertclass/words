@@ -1,12 +1,13 @@
 const { app, BrowserWindow, Menu, dialog, webContents } = require("electron")
 const ipc = require("electron").ipcMain
 const fs = require('fs')
+const path = require('path')
 const http = require('http')
 const cheerio = require('cheerio')
 
 let win
-let dict
-let task = {
+let accounts = {}
+let user = {
     total : 0,
     words : {
 
@@ -54,7 +55,7 @@ function load_page(word, cb) {
         })
 
         res.on("end", () => {
-            let $ = cheerio.load(buf)
+            const $ = cheerio.load(buf)
             let obj = {}
             load_symbol($, obj)
             load_pronunciation($, obj)
@@ -83,7 +84,6 @@ function load_pronunciation(doc, obj) {
 
     obj.pronunciation["us"] = parse(doc(".hd_prUS.b_primtxt").next().children("a").attr("onclick"))
     obj.pronunciation["en"] = parse(doc(".hd_pr.b_primtxt").next().children("a").attr("onclick"))
-
 }
 
 function load_explain(doc, obj) {
@@ -119,8 +119,15 @@ function createWindow() {
 }
 
 ipc.on('windowLoaded', (event) => {
-    load_page('police', null)
-    event.reply('init', ['police', 'office', 'station'])
+    let files = fs.readdirSync('./accounts')
+    let users = []
+    for (let file in files) {
+        let fullpath = './accounts' + '/' + file
+        let st = fs.statSync()
+        if (st.isFile() && path.extname(fullpath) == "json") {
+            users.push(path.basename(fullpath, "json"))
+        }
+    }
 })
 
 // Electron 会在初始化后并准备
@@ -163,5 +170,12 @@ app.on('file-load', (event, focusedWindow, focusedWebContents) => {
         })
     }).catch(err => {
         console.log(err)
+    })
+})
+
+app.on('selectAccount', (event, id) => {
+    fs.readFile(`./account/${id}`, 'utf8', (err, data) => {
+        user = JSON.parse(data)
+        event.reply('user-login')
     })
 })

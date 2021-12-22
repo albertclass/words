@@ -73,10 +73,22 @@ function onKeyDown(e) {
     }
 }
 
+ipcRenderer.on('user', (event, users) => {
+    let e = document.getElementById('users');
+    for (let user in users) {
+        e.insertAdjacentElement
+    }
+})
+
 ipcRenderer.on('init', (event, args) => {
     words = args
     next()
     document.addEventListener('keydown', onKeyDown)
+})
+
+ipcRenderer.on('user-login', (event, args) => {
+    let e = document.getElementById('main')
+    e.style.display = 'flex'
 })
 
 ipcRenderer.send('windowLoaded')
