@@ -73,11 +73,55 @@ function onKeyDown(e) {
     }
 }
 
-ipcRenderer.on('user', (event, users) => {
-    let e = document.getElementById('users');
-    for (let user in users) {
-        e.insertAdjacentElement
+ipcRenderer.on('users', (event, users) => {
+    let ele = document.getElementById('users');
+    if (ele === null) return
+    ele.innerHTML = ""
+   
+    if (users == null || users.count == 0) return
+
+    for (let idx in users) {
+        let spn = document.createElement('span')
+        let btn = document.createElement('input')
+        btn.id = users[idx]
+        btn.type = "button"
+        btn.className = "accountBtn"
+        btn.value = users[idx]
+        btn.onclick = function() { 
+            ipcRenderer.send('user-logon', this.value)
+        }
+
+        spn.appendChild(btn)
+        ele.appendChild(spn)
     }
+
+    let spl = document.createElement('span')
+    spl.innerHTML = "<hr/>"
+    ele.appendChild(spl)
+
+    let spn = document.createElement('span')
+    let acc = document.createElement('input')
+    acc.id="accountName"
+    acc.type="edit"
+    acc.className="accountInput"
+    acc.placeholder="请输入创建的账号名字..."
+
+    let btn = document.createElement('input')
+    btn.type = "button"
+    btn.className = "accountBtn"
+    btn.value = "创建新用户"
+    btn.onclick = function() {
+        if (acc.value == null || acc.value.length == 0) {
+            acc.placeholder="账号名为空，创建账号失败..."
+            return;
+        }
+
+        ipcRenderer.send('createUser', acc.value)
+    }
+    spn.appendChild(acc)
+    spn.appendChild(btn)
+
+    ele.appendChild(spn)
 })
 
 ipcRenderer.on('init', (event, args) => {
@@ -87,8 +131,11 @@ ipcRenderer.on('init', (event, args) => {
 })
 
 ipcRenderer.on('user-login', (event, args) => {
-    let e = document.getElementById('main')
-    e.style.display = 'flex'
+    let login = document.getElementById('login')
+    let begin = document.getElementById('begin')
+
+    login.style.display = 'none'
+    begin.style.display = 'flex'
 })
 
 ipcRenderer.send('windowLoaded')

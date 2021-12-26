@@ -118,16 +118,52 @@ function createWindow() {
     })
 }
 
-ipc.on('windowLoaded', (event) => {
+function getUsers() {
     let files = fs.readdirSync('./accounts')
     let users = []
     for (let file in files) {
-        let fullpath = './accounts' + '/' + file
-        let st = fs.statSync()
-        if (st.isFile() && path.extname(fullpath) == "json") {
-            users.push(path.basename(fullpath, "json"))
+        let fullpath = './accounts' + '/' + files[file]
+        let st = fs.statSync(fullpath)
+        if (st.isFile() && path.extname(fullpath) == ".json") {
+            users.push(path.basename(fullpath, ".json"))
         }
     }
+
+    return users
+}
+
+ipc.on('windowLoaded', (event) => {
+    let users = getUsers()
+    event.reply('users', users)
+})
+
+ipc.on('createUser', (event, account) => {
+    fs.writeFileSync(`./accounts/${account}.json`, '{}')
+    let users = getUsers()
+    event.reply('users', users)
+})
+
+ipc.on('user-logon', (event, account) => {
+    console.log('user logon ... ')
+    fs.readFile(`./account/${account}.json`, 'utf8', (err, data) => {
+        if (err) {
+            event.reply('user-login', 'falt: read file error.')
+            return
+        } 
+        
+        user = JSON.parse(data)
+        if (type(user) != 'object') {
+            event.reply('user-login', 'falt: data type error.')
+            return
+        }
+
+        if (!("words" in user)) {
+            event.reply('user-login', 'falt: no words to exam.')
+            return
+        }
+
+        event.reply('user-login', user['words'])
+    })
 })
 
 // Electron 会在初始化后并准备
@@ -170,12 +206,5 @@ app.on('file-load', (event, focusedWindow, focusedWebContents) => {
         })
     }).catch(err => {
         console.log(err)
-    })
-})
-
-app.on('selectAccount', (event, id) => {
-    fs.readFile(`./account/${id}`, 'utf8', (err, data) => {
-        user = JSON.parse(data)
-        event.reply('user-login')
     })
 })

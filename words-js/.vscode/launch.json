@@ -15,7 +15,7 @@
                 "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron.cmd"
             },
             "cwd":"${workspaceFolder}",
-            "args": [".", "--remote-debugging-port=9333"],
+            "args": [".", "--remote-debugging-port=9666"],
             "protocol": "inspector",
             "env": {},
             "console": "internalConsole",
@@ -27,7 +27,7 @@
             "type":"pwa-chrome",
             "request":"attach",
             "name":"Electron Renderer",
-            "port":9333
+            "port":9666
          }
     ],
 
