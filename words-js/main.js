@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, webContents } = require("electron")
+const { app, BrowserWindow, Menu, dialog, webContents, ipcMain } = require("electron")
 const ipc = require("electron").ipcMain
 const fs = require('fs')
 const path = require('path')
@@ -44,6 +44,7 @@ function load_page(word, cb) {
 
     let req = http.request(options, (res) => {
         if (res.statusCode != 200) {
+            cb(-1, 'word request error.')
             return
         }
 
@@ -60,6 +61,8 @@ function load_page(word, cb) {
             load_symbol($, obj)
             load_pronunciation($, obj)
             load_explain($, obj)
+
+            cb(0, obj)
         })
     })
 
@@ -145,27 +148,33 @@ ipc.on('createUser', (event, account) => {
 
 ipc.on('user-logon', (event, account) => {
     console.log('user logon ... ')
-    fs.readFile(`./account/${account}.json`, 'utf8', (err, data) => {
+    fs.readFile(`./accounts/${account}.json`, 'utf8', (err, data) => {
         if (err) {
-            event.reply('user-login', 'falt: read file error.')
+            event.reply('user-login', -1, 'falt: read file error.')
             return
         } 
         
         user = JSON.parse(data)
-        if (type(user) != 'object') {
-            event.reply('user-login', 'falt: data type error.')
+        if (typeof(user) != 'object') {
+            event.reply('user-login', -2, 'falt: data type error.')
             return
         }
 
         if (!("words" in user)) {
-            event.reply('user-login', 'falt: no words to exam.')
-            return
+            user["words"] = {}
         }
 
-        event.reply('user-login', user['words'])
+        event.reply('user-login', 0, user['words'])
     })
 })
 
+ipc.on('addWord', (event, word) => {
+    load_page(word, (err, msg) => {
+        if (err == 0) {
+            event.reply('onWordAdded', msg);
+        }
+    })
+})
 // Electron 会在初始化后并准备
 // 创建浏览器窗口时，调用这个函数。
 // 部分 API 在 ready 事件触发后才能使用。

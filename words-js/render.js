@@ -1,5 +1,29 @@
-const {ipcRenderer} = require('electron')
-let words = ['police', 'office', 'station']
+const {ipcRenderer, ipcMain} = require('electron')
+let words = [
+    {
+        spell: 'police',
+        symbol: [
+            "pə'liːs", // en
+            "pə'liːs", // us
+        ],
+        pronunciation: [
+            "https://dictionary.blob.core.chinacloudapi.cn/media/audio/tom/fb/31/FB31FC8179317552F1A6D86EABA60259.mp3", // en
+            "https://dictionary.blob.core.chinacloudapi.cn/media/audio/george/fb/31/FB31FC8179317552F1A6D86EABA60259.mp3", // us
+        ],
+        explains: [
+            ['n.', '警方；警察部门'],
+            ['v.', '长官'],
+            ['网络', '警察局；警务人员；警察当局']
+        ]
+    }, 
+    { 
+        word: 'office'
+    },
+    {
+        word: 'station'
+    }
+]
+
 let count = 0
 
 let saved = null
@@ -23,13 +47,13 @@ function next() {
     let e = document.getElementById('input')
 
     keypos = 0
-    length = w.length
+    length = w.spell.length
     input = new Array(length)
     saved = new Array(length)
 
-    for (let i = 0; i < w.length; ++i) {
+    for (let i = 0; i < w.spell.length; ++i) {
         input[i] = '_';
-        saved[i] = w.charAt(i)
+        saved[i] = w.spell.charAt(i)
     }
 
     e.innerText = input.join(' ');
@@ -130,12 +154,62 @@ ipcRenderer.on('init', (event, args) => {
     document.addEventListener('keydown', onKeyDown)
 })
 
-ipcRenderer.on('user-login', (event, args) => {
+ipcRenderer.on('user-login', (event, err, msg) => {
     let login = document.getElementById('login')
     let begin = document.getElementById('begin')
+    
+    function hide(id) {
+        let e = document.getElementById(id)
+        if (e) {
+            e.style.display = 'none'
+        }
 
-    login.style.display = 'none'
-    begin.style.display = 'flex'
+        return e;
+    }
+
+    function show(id, attr) {
+        let e = document.getElementById(id)
+        if (e) {
+            e.style.display = attr ? attr : 'block'
+        }
+
+        return e;
+    }
+
+    if (err == 1) {
+        hide('login')
+        hide('begin')
+        show('message')
+
+        let e = document.getElementById('content')
+        e.innerText = msg;
+        return
+    }
+
+    if (err != 0) {
+        hide('login')
+        hide('begin')
+        show('message')
+
+        let e = document.getElementById('content')
+        e.innerText = msg;
+    } else {
+        hide('login')
+        hide('message')
+        show('begin', 'flex')
+    }
 })
 
+let add = document.getElementById('add');
+if (add) {
+    add.addEventListener("click", function () {
+        let words = document.getElementById('newwords');
+        if (words && words.length > 0) {
+            let arr = words.split(", ")
+            arr.forEach(word => {
+                ipcRenderer.send('addWord', word)
+            });
+        }
+    })
+}
 ipcRenderer.send('windowLoaded')

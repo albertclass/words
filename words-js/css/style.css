@@ -16,9 +16,9 @@ li {
 }
 
 body {
-    width: calc(100% - 20px);
+    width: calc(100% - 10px);
     height: calc(100% - 10px);
-    margin: 4px 10px;
+    margin: 4px 4px;
     border-width: 2px ;
     border-color: red;
 }
@@ -44,15 +44,10 @@ body {
     border-style: solid;
 }
 
-.line {
-    height: 2px;
-    border-radius: 3px;
-    border-color: red;
-    border-width: 1px;
-    border-style: solid;
-    background-color: red;
-    margin: 1px 0px;
-    flex: none;
+.load {
+    width     : 100%;
+    background: whitesmoke;
+    flex: 0 1 auto;
 }
 
 .word {
@@ -64,6 +59,17 @@ body {
     font: outline;
     font-family: 'Courier New', Courier, monospace, 微软雅黑;
     font-size: 20px;
+}
+
+.line {
+    height: 2px;
+    border-radius: 3px;
+    border-color: red;
+    border-width: 1px;
+    border-style: solid;
+    background-color: red;
+    margin: 1px 0px;
+    flex: none;
 }
 
 .explain {
@@ -102,6 +108,29 @@ body {
     height: 22px;
     margin: 3px;
 }
+
 #users span {
     display: block;
+}
+
+#message div {
+    width: 400px; 
+    border: 2px solid red;
+
+}
+#message div * {
+    border: 2px solid red;
+    margin: 0px;
+    padding: 4px 16px;
+}
+
+#message div #title {
+    color: red;
+    background-color: white;
+    text-align: center;
+}
+
+#message div #content {
+    color: white;
+    height: 300px;
 }
