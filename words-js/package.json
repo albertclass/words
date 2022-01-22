@@ -14,11 +14,12 @@
   "author": "albert.xu",
   "license": "ISC",
   "dependencies": {
-    "nan": "^2.14.0",
-    "sqlite3": "^4.1.1"
+    "nan": "^2.15.0",
+    "sqlite3": "^4.2.0"
   },
   "devDependencies": {
-    "cheerio": "^1.0.0-rc.3",
+    "async": "^3.2.3",
+    "cheerio": "^1.0.0-rc.10",
     "electron": "^7.3.3"
   }
 }

@@ -4,9 +4,9 @@ const fs = require('fs')
 const path = require('path')
 const http = require('http')
 const cheerio = require('cheerio')
+const Async = require('async')
 
 let win
-let accounts = {}
 let user = {
     total : 0,
     words : {
@@ -31,42 +31,61 @@ let menuTemplate = [
     }
 ]
 
-function load_page(word, cb) {
-    const options = {
-        hostname: "cn.bing.com",
-        port: 80,
-        path: "/dict/search?q=" + word,
-        method: "GET",
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+function load_url(url) {
+    return new Promise((resolve, reject) => {
+        const options = {
+            hostname: "cn.bing.com",
+            port: 80,
+            path: url,
+            method: "GET",
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
         }
+    
+        let req = http.request(options, (res) => {
+            if (res.statusCode != 200) {
+                reject('word request error.')
+                return
+            }
+    
+            res.setEncoding('utf8')
+    
+            buf = Buffer.from("")
+            res.on("data", (chunk) => {
+                buf += chunk
+            })
+    
+            res.on("end", () => {
+                resolve(buf);
+            })
+
+            res.on("error", (err) => {
+                reject(err)
+            })
+        })
+    
+        req.on('error', (err) => {
+            reject(err);
+        })
+
+        req.end()
+    });
+}
+
+async function load_word(word, cb) {
+    try {
+        let buf = await load_url(`/dict/search?q=${word}`);
+        let $ = cheerio.load(buf)
+        let obj = {}
+        load_symbol($, obj)
+        load_pronunciation($, obj)
+        load_explain($, obj)
+        return obj;
+    } catch (err) {
+        console.log(err);
+        return null;
     }
-
-    let req = http.request(options, (res) => {
-        if (res.statusCode != 200) {
-            cb(-1, 'word request error.')
-            return
-        }
-
-        res.setEncoding('utf8')
-
-        buf = Buffer.from("")
-        res.on("data", (chunk) => {
-            buf += chunk
-        })
-
-        res.on("end", () => {
-            const $ = cheerio.load(buf)
-            let obj = {}
-            load_symbol($, obj)
-            load_pronunciation($, obj)
-            load_explain($, obj)
-
-            cb(0, obj)
-        })
-    })
-
-    req.end()
 }
 
 function load_symbol(doc, obj) {
@@ -93,10 +112,16 @@ function load_explain(doc, obj) {
 
 }
 
-function load_book(filename) {
+async function load_book(filename, cb) {
     buf = fs.readFileSync(filename)
     all = buf.toString().split(/[\t\r\n ]/, -1).filter((v) => v.length > 0)
-    all.forEach(word => { load(word) })
+    
+    await Async.mapLimit(
+        all, 
+        5, 
+        load_word,
+        cb // cb(err, results)
+    )
 }
 
 function createWindow() {
@@ -210,9 +235,20 @@ app.on('file-load', (event, focusedWindow, focusedWebContents) => {
             return
         }
         
-        result.filePaths.forEach(path => {
-            load_book(path)
-        })
+        try {
+            let words = [];
+            result.filePaths.forEach((filepath) => { 
+                load_book(filepath, (err, objs) => {
+                    objs.map(obj => words.push(obj))
+                });
+            });
+
+            event.reply('book-loaded', null, words)
+        } catch (err) {
+            console.log(err);
+            event.reply('book-loaded', err);
+        }
+
     }).catch(err => {
         console.log(err)
     })
