@@ -155,18 +155,14 @@ class Dictionary:
     def getPronunciation(html_selector, word):
         pronunciation={}
         pronunciation_xpath='/html/body/div[1]/div/div/div[1]/div[1]/div[1]/div[2]/div'
-        bbb="(https\\:.*?mp3)"
-        reobj1=re.compile(bbb,re.I|re.M|re.S)
         pronunciations=html_selector.xpath(pronunciation_xpath)
-        for item in pronunciations:
-            it=item.xpath('div')
-            if len(it)>0:
-                voice=reobj1.findall(it[1].xpath('a')[0].get('onmouseover',None))
-                pronunciation["us"] = it[0].text
-                Dictionary.download(voice[0], "./pronunciation/us/" + word + ".mp3")
-                voice=reobj1.findall(it[3].xpath('a')[0].get('onmouseover',None))
-                pronunciation["en"] = it[2].text
-                Dictionary.download(voice[0], "./pronunciation/en/" + word + ".mp3")
+
+        us=pronunciations('div[2]/a')
+        voice=us['data-mp3link']
+        Dictionary.download(voice, "./pronunciation/us/" + word + ".mp3")
+        en=pronunciations.xpath('div[4]/a')
+        voice=en['data-mp3link']
+        Dictionary.download(voice, "./pronunciation/en/" + word + ".mp3")
 
         return pronunciation
 
@@ -356,9 +352,10 @@ pygame.init()
 
 screen = pygame.display.set_mode((800, 600), 0, 32)
 font = [
-    pygame.font.SysFont("SimHei", 20),
+    pygame.font.SysFont(["Microsoft YaHei", "SimHei", "Lucida Sans Unicode", "sans-serif"], 20),
     pygame.font.SysFont("SimHei", 32), # Arial,Helvetica,Sans-Serif
     pygame.font.SysFont("Arial", 24),
+    pygame.font.SysFont("Microsoft YaHei", 24),
 ]
 
 str=""
@@ -387,7 +384,7 @@ for w in b:
     w.count += 1
     factor = 0.1
 
-    p = Pronunciation(w.content, 10, 10, font[2])
+    p = Pronunciation(w.content, 10, 10, font[0])
     e = Explain(w.content, 10, 70, font[0])
 
     mp3 = "./pronunciation/" + sound + "/" + w.word + ".mp3"
