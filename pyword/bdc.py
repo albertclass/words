@@ -1,78 +1,149 @@
 import json
 import os
-import re
 import sys
-import time
-import urllib.request
-from functools import reduce
-
+from xmlrpc.client import boolean
 import pygame
-from lxml import etree
+import sqlite3
+import logging
 
+from dataclasses import dataclass, field
 
+logging.basicConfig(filename='word.log', level=logging.DEBUG)
+sys.path.append(os.path.abspath('../ECDICT/'))
+import stardict
+if not os.path.exists("dict.db"):
+    stardict.convert_dict("dict.db", "../ECDICT/ecdict.csv")
+
+dictionary = stardict.StarDict("dict.db")
+# Connect to the SQLite database
+connection = sqlite3.connect('users.db')
+
+# Create a cursor object to execute SQL commands
+cursor = connection.cursor()
+
+create_user = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    book TEXT NOT NULL,
+);
+"""
+
+@dataclass
+class Word:
+    word: str = field(init=True)
+    count: int = 0
+    wrong: int = 0
+    right: int = 0
+    proficiency: int = 0
+    content: dict[str,str] = field(default_factory=dict[str,str])
+    
 class Book:
-    def __init__(self, name, dictionary):
+    '''
+    单词书，要背的单词都在单词书里面。会定期进行复习。
+    '''
+    book_create_table = """
+    CREATE TABLE IF NOT EXISTS {tablename} (
+        word TEXT PRIMARY KEY,
+        count INTEGER NOT NULL DEFAULT 0,
+        wrong INTEGER NOT NULL DEFAULT 0,
+        right INTEGER NOT NULL DEFAULT 0,
+        proficiency INTEGER NOT NULL DEFAULT 100,
+        content TEXT
+    );
+    """
+
+    book_insert_word = """
+        INSERT OR REPLACE INTO {tablename} (word, count, wrong, right, proficiency, content)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """
+    
+    book_load_query = """
+        SELECT word, count, wrong, right, proficiency, content FROM {tablename} where proficiency < 100
+    """
+    
+    book_update_wrong = """
+        UPDATE {tablename} SET wrong = wrong + 1, proficiency = proficiency + ? where word = ?
+    """
+    
+    book_update_right = """
+        UPDATE {tablename} SET right = right + 1, proficiency = proficiency + ? where word = ?
+    """
+    
+    def __init__(self, user:str, name:str, dictionary: stardict.StarDict):
         self.dirty = False
-        self.words = []
+        self.words: list[Word] = []
+        self.user = user
         self.name = name
-        self.file = name + ".json"
+        self.tablename = f"{self.user}-{self.name}"
         self.iter = 0
         self.dictionary = dictionary
-
-    def isEmpty(self):
-        return len(self.words) == 0
-
-    def add(self, word, content):
-        props = {
-            "word" : word,
-            #出现次数
-            "count" : 0,
-            #错误次数
-            "wrong" : 0,
-            #正确次数，错误时重置该值
-            "right" : 0,
-            #熟练度, 0 - 100
-            "proficiency" : 100,
-            #单词详细信息
-            "content" : content
-        }
-
-        self.words.append(type('Word', (object,), props))
-
-    def new(self):
+        
+    def __new(self):
+        '''
+        从文件中新建单词书，单词每行一个，也可以是词组或固定搭配。
+        '''
         f = open(os.path.join("book", self.name + ".txt"))
         try:
             lines = f.readlines()
             words = [ln[:-1] for ln in lines]
-            self.dictionary.newBook(words, self)
+            for word in words:
+                info = self.dictionary.query(word)
+                if info is not None:
+                    cursor.execute(self.book_insert_word.format(tablename=self.tablename), (info.word, 0, 0, 0, 0, ""))
+            
+            connection.commit()
+            
         except Exception as e:
             print(e)
 
-    def load(self):
-        if os.path.exists(self.file):
-            f = open(self.file)
-            try:
-                self.words = json.load(f)
-            except Exception as e:
-                print("%s line = %d, position = %d" % (e.msg, e.lineno, e.pos))
-                return False
+    def isEmpty(self):
+        return len(self.words) == 0
+    
+    def exists(self) -> bool:
+        if not self.tablename.isalnum():
+            raise ValueError("Table name must be alphanumeric")
+        
+        # Query to check if table exists
+        query = "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
+        cursor.execute(query, (self.tablename,))
+        
+        result = cursor.fetchone()
+        
+        # If result is not None, the table exists
+        return result is not None
+    
+    def load(self) -> bool:
+        '''
+        加载背过的单词书进行复习
+        '''
+        try:
+            if not self.exists():
+                self.__new()
             
-            f.close
-            return True
+            cursor.execute(self.book_load_query.format(tablename=self.tablename))
+            for row in cursor.fetchall():
+                w = Word(*row)
+                info = self.dictionary.query(w.word)
+                if info is not None:
+                    w.content = info
+                    self.words.append(w)
 
-        return False
-
-    def save(self, account):
-        f = open(self.file, "w")
-        json.dump(self.words, f, indent = "  ", skipkeys=("content", "proficiency"))
-        f.close()
+        except Exception as e:
+            logging.error(f"{type(e)} - {e}")
+            return False
+        
         return True
-
+    
     def __iter__(self):
         self.iter = 0
         return self
 
     def __next__(self):
+        '''
+        单词迭代，背会的单词会被从列表中剔除。
+        '''
         if len(self.words) == 0:
             raise StopIteration
         
@@ -85,140 +156,6 @@ class Book:
                 return word
         else:
             raise StopIteration
-
-        
-class Dictionary:
-    def __init__(self, name):
-        self.name = name
-        self.file = self.name + ".json"
-        self.words = {}
-        self.dirty = False
-
-        if not os.path.isdir("pronunciation"):
-            os.mkdir("pronunciation")
-        
-        if not os.path.isdir("pronunciation/en"):
-            os.mkdir("pronunciation/en")
-    
-        if not os.path.isdir("pronunciation/us"):
-            os.mkdir("pronunciation/us")
-
-        if os.path.exists(self.file):
-            f = open(self.file)
-            try:
-                self.words = json.load(f)
-            except Exception as e:
-                print("%s line = %d, position = %d" % (e.msg, e.lineno, e.pos))
-            
-            f.close
-
-    # 获取单词信息
-    def get(self, word):
-        return self.words[word]
-
-    #下载音标文件
-    def download(url, out):
-        try:
-            if url.startswith("http://") or url.startswith("https://"):
-                urllib.request.urlretrieve(url, out)
-            else:
-                return False
-        except Exception as e:
-            print('download_http_source error %s' % str(e))
-            return False
-
-    #获得页面数据
-    def getPage(word):
-        try:
-            basurl='http://cn.bing.com/dict/search?q='
-            searchurl=basurl+word.replace(' ', '+')
-            response = urllib.request.urlopen(searchurl)
-            html = response.read()
-            return html
-        except Exception as e:
-            print('got page falut (%s)' % (str(e)))
-            return None
-
-    #获得单词释义
-    def getExplains(html_selector):
-        explains=[]
-        hanyi_xpath='/html/body/div[1]/div/div/div[1]/div[1]/ul/li'
-        get_hanyi=html_selector.xpath(hanyi_xpath)
-        for item in get_hanyi:
-            it=item.xpath('span')
-            ix=it[1].getchildren()
-            explains.append('%s - %s' % (it[0].text, reduce(lambda x, y: x + y.text, ix, "")))
-            
-        return explains
-
-    #获得单词音标和读音连接
-    def getPronunciation(html_selector, word):
-        pronunciation={}
-        pronunciation_xpath='/html/body/div[1]/div/div/div[1]/div[1]/div[1]/div[2]/div'
-        pronunciations=html_selector.xpath(pronunciation_xpath)
-
-        us=pronunciations('div[2]/a')
-        voice=us['data-mp3link']
-        Dictionary.download(voice, "./pronunciation/us/" + word + ".mp3")
-        en=pronunciations.xpath('div[4]/a')
-        voice=en['data-mp3link']
-        Dictionary.download(voice, "./pronunciation/en/" + word + ".mp3")
-
-        return pronunciation
-
-    #获得例句
-    def getExample(html_selector):
-        examples=[]
-        get_example_e=html_selector.xpath('//*[@class="val_ex"]')
-        get_example_cn=html_selector.xpath('//*[@class="bil_ex"]')
-        get_len=len(get_example_e)
-        for i in range(get_len):
-            example = {}
-            example["en"] = get_example_e[i].text
-            example["cn"] = get_example_cn[i].text
-
-            examples.append(example)
-
-        return examples
-
-    def getWord(word):
-        content = {}
-        #获得页面
-        page=Dictionary.getPage(word)
-        if page != None:
-            selector = etree.HTML(page.decode('utf-8'))
-            #单词释义
-            content["explain"] = Dictionary.getExplains(selector)
-            #单词音标及读音
-            content["pronunciation"] = Dictionary.getPronunciation(selector, word) 
-            #例句
-            content["example"] = Dictionary.getExample(selector)
-
-        return content
-
-    def newBook(self, words, book):
-        book = book or Book()
-
-        for word in words:
-            if not self.words.__contains__(word):    
-                time.sleep(0.2)
-                print("loading %s" % (word))
-                info = Dictionary.getWord(word.rstrip())
-
-                self.words[word] = info
-                self.dirty = True
-
-            book.add(word, self.words[word])
-
-        return book
-
-    def save(self):
-        if not self.dirty:
-            return
-
-        f = open(self.file, "w")
-        json.dump(self.words, f, indent = "  ")
-        f.close()
 
 class Sprite(pygame.sprite.Sprite):
     def __init__(self, image, x = 0, y = 0):
@@ -233,7 +170,10 @@ class Sprite(pygame.sprite.Sprite):
         return self.rect.width
 
 class Letter(pygame.sprite.Sprite):
-    def __init__(self, char=None, x = 0, y = 0):
+    '''
+    单词拼写字母。
+    '''
+    def __init__(self, char: str="", x = 0, y = 0):
         pygame.sprite.Sprite.__init__(self)
         index = ord(char)
         self.char = char
@@ -313,18 +253,13 @@ class CharSequence(pygame.sprite.Group):
         return self.complate
 
 class Pronunciation(pygame.sprite.Group):
-    def __init__(self, content, x, y, font):
+    def __init__(self, phonetic, x, y, font):
         pygame.sprite.Group.__init__(self)
         self.x = x
         self.y = y
 
-        ch = content["pronunciation"]["en"]
-        en = Sprite(font.render(ch, True, [255,255,255]), x, y)
-        ch = content["pronunciation"]["us"]
-        us = Sprite(font.render(ch, True, [255,255,255]), x, y + en.height())
-        
+        en = Sprite(font.render(phonetic, True, [255,255,255]), x, y)
         self.add(en)
-        self.add(us)
 
 class Explain(pygame.sprite.Group):
     def __init__(self, content, x, y, font):
@@ -350,30 +285,29 @@ pygame.mixer.init()
 pygame.mixer.pre_init(44100, -16, 2, 2048)
 pygame.init()
 
+# define the screen wight and height
 screen = pygame.display.set_mode((800, 600), 0, 32)
-font = [
+# load font to display
+fonts = [
     pygame.font.SysFont(["Microsoft YaHei", "SimHei", "Lucida Sans Unicode", "sans-serif"], 20),
     pygame.font.SysFont("SimHei", 32), # Arial,Helvetica,Sans-Serif
     pygame.font.SysFont("Arial", 24),
     pygame.font.SysFont("Microsoft YaHei", 24),
 ]
 
+# Calc the letter weight and height
 str=""
 for i in range(32, 126):
     str += chr(i)
 
-image = font[1].render(str, True, [255,255,255])
+image = fonts[1].render(str, True, [255,255,255])
 image_rect = image.get_rect()
 letter_w = image_rect.width / 94
 letter_h = image_rect.height
-sound = "en"
 
-d = Dictionary('default')
-b = Book('M1U1', d)
-if b.isEmpty():
-    b.new()
-
-d.save()
+# load book and prepare the data
+b = Book('xuchenhao', 'M1U1', dictionary)
+b.load()
 
 running = True
 
@@ -384,13 +318,14 @@ for w in b:
     w.count += 1
     factor = 0.1
 
-    p = Pronunciation(w.content, 10, 10, font[0])
-    e = Explain(w.content, 10, 70, font[0])
+    g = pygame.sprite.Group()
+    g.add(Sprite(fonts[0].render(w.content["phonetic"], True, [255,255,255]), 10, 10))
+    g.add(Sprite(fonts[0].render(w.content["translation"], True, [255,255,255]), 10, 70))
 
-    mp3 = "./pronunciation/" + sound + "/" + w.word + ".mp3"
-    if os.path.exists(mp3):
-        pygame.mixer.music.load(mp3)
-        pygame.mixer.music.play()
+    # mp3 = "./pronunciation/" + sound + "/" + w.word + ".mp3"
+    # if os.path.exists(mp3):
+    #     pygame.mixer.music.load(mp3)
+    #     pygame.mixer.music.play()
     
     while running and not s.complated():
         tick = pygame.time.get_ticks()
@@ -417,17 +352,14 @@ for w in b:
         #     screen.blit(img, (0, y))
         #     y += 30
 
-        screen.blit(font[0].render("评价：%.1f 分" % (w.proficiency), True, (255,255,255)), (300, 10))
-        screen.blit(font[0].render("用时：%5.2f 秒" % (tick/1000), True, (255,255,255)), (580, 10))
+        screen.blit(fonts[0].render("评价：%.1f 分" % (w.proficiency), True, (255,255,255)), (300, 10))
+        screen.blit(fonts[0].render("用时：%5.2f 秒" % (tick/1000), True, (255,255,255)), (580, 10))
         
         s.update(tick)
         s.draw(screen)
 
-        p.update(tick)
-        p.draw(screen)
-
-        e.update(tick)
-        e.draw(screen)
+        g.update(tick)
+        g.draw(screen)
 
         pygame.display.update()
         pygame.display.flip()
@@ -443,5 +375,3 @@ for w in b:
 else:
     print("finished.")
     pass
-
-b.save("xuchenhao")
