@@ -211,7 +211,7 @@ class Letter(pygame.sprite.Sprite):
         self.set('_')
         
     def press(self, char):
-        self.set(char)
+        return self.set(char)
 
     def correct(self):
         return self.type == self.char
@@ -219,7 +219,7 @@ class Letter(pygame.sprite.Sprite):
 class CharSequence(pygame.sprite.Group):
     def __init__(self, word, x, y):
         pygame.sprite.Group.__init__(self)
-        self.sequence = []
+        self.sequence: list[Letter] = []
         self.x = x - len(word) * (letter_w + 1) / 2
         self.y = y - letter_h / 2
         self.judge = False
@@ -257,11 +257,17 @@ class CharSequence(pygame.sprite.Group):
                     break
             else:
                 self.judge = True
-
-            self.complate = True
+                self.complate = True
 
         return self.judge
 
+    def reset(self):
+        for ch in self.sequence:
+            ch.reset()
+        self.judge = False
+        self.complate = False
+        self.cursor = 0
+        
     def complated(self):
         return self.complate
 
@@ -326,6 +332,10 @@ running = True
 
 mp3 = ""
 
+# 关闭输入法
+pygame.key.stop_text_input()
+
+# 开始背单词
 for w in b:
     s = CharSequence(w.word, 400, 540)
     w.count += 1
@@ -345,7 +355,7 @@ for w in b:
     # if os.path.exists(mp3):
     #     pygame.mixer.music.load(mp3)
     #     pygame.mixer.music.play()
-    
+    wrong = 0
     while running and not s.complated():
         tick = pygame.time.get_ticks()
 
@@ -354,6 +364,8 @@ for w in b:
 
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.TEXTINPUT:
+                pygame.key.stop_text_input()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
@@ -362,15 +374,23 @@ for w in b:
                 elif event.key == pygame.K_DELETE:
                     s.delete()
                 elif event.key == pygame.K_RETURN:
-                    s.check()
+                    if s.check() == False:
+                        wrong += 1
+                        b.wrong(w)
+                        s.reset()
+                        
+                    if wrong > 2:
+                        # play the pronunciation
+                        pass
+                    
+                    if wrong > 5:
+                        # show correct spelling
+                        g.add(Sprite(fonts[0].render(w.word, True, [200,0,100]), 10, 10))
+                        break
                 else:
                     s.press(event.key)
 
         screen.fill((0,0,0))
-        # y = 100
-        # for img in uniimg:
-        #     screen.blit(img, (0, y))
-        #     y += 30
 
         screen.blit(fonts[0].render("评价：%.1f 分" % (w.proficiency), True, (255,255,255)), (300, 10))
         screen.blit(fonts[0].render("用时：%5.2f 秒" % (tick/1000), True, (255,255,255)), (580, 10))
