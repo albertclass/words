@@ -11,16 +11,31 @@ pygame.display.set_caption("Phonetic Symbols with Pygame")
 
 # Choose a font and size
 # Make sure the font file supports phonetic symbols and is available on your system
-font_path = pygame.font.match_font('dejavusans')  # Change to a specific font path if necessary
+font_path = [
+    pygame.font.match_font('Arial Unicode MS'),  # Change to a specific font path if necessary
+    pygame.font.match_font('Calibri'),
+    pygame.font.match_font('Cambria'),
+    pygame.font.match_font('Times New Roman'),
+    pygame.font.match_font('Segoe UI'),
+    pygame.font.match_font('Lucida Sans Unicode'),
+    pygame.font.match_font('DejaVu Sans'),
+]
+
 font_size = 48
-font = pygame.font.Font(font_path, font_size)
+fonts = [pygame.font.Font(path, font_size) for path in font_path]
 
 # Phonetic symbols to display
-phonetic_symbols = "ˈaɪ ˈpiː ˈeɪ"
+phonetic_symbols = "'sistә"
 
 # Render the text
-text_surface = font.render(phonetic_symbols, True, (255, 255, 255))
+text_surfaces = [font.render(phonetic_symbols, True, (255, 255, 255)) for font in fonts]
 
+g = pygame.sprite.Group()
+for i, text_surface in enumerate(text_surfaces):
+    g.add(pygame.sprite.Sprite())
+    g.sprites()[-1].image = text_surface
+    g.sprites()[-1].rect = text_surface.get_rect(topleft=(100, 100 + i * 50))
+    
 # Main loop
 running = True
 while running:
@@ -32,7 +47,8 @@ while running:
     screen.fill((0, 0, 0))
     
     # Draw the text
-    screen.blit(text_surface, (100, 100))
+    # screen.blit(g, (100, 100))
+    g.draw(screen)
     
     # Update the display
     pygame.display.flip()

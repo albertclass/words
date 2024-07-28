@@ -1,7 +1,5 @@
-import json
 import os
 import sys
-from xmlrpc.client import boolean
 import pygame
 import sqlite3
 import logging
@@ -9,10 +7,10 @@ import logging
 from dataclasses import dataclass, field
 
 logging.basicConfig(filename='word.log', level=logging.DEBUG)
-sys.path.append(os.path.abspath('../ECDICT/'))
+sys.path.append(os.path.abspath('./ECDICT/'))
 import stardict
-if not os.path.exists("dict.db"):
-    stardict.convert_dict("dict.db", "../ECDICT/ecdict.csv")
+if not os.path.exists("dict.db") and os.path.exists("./ECDICT/ecdict.csv"):
+    stardict.convert_dict("dict.db", "./ECDICT/ecdict.csv")
 
 dictionary = stardict.StarDict("dict.db")
 # Connect to the SQLite database
@@ -36,6 +34,7 @@ class Word:
     count: int = 0
     wrong: int = 0
     right: int = 0
+    bingo: int = 0
     proficiency: int = 0
     content: dict[str,str] = field(default_factory=dict[str,str])
     
@@ -49,7 +48,8 @@ class Book:
         count INTEGER NOT NULL DEFAULT 0,
         wrong INTEGER NOT NULL DEFAULT 0,
         right INTEGER NOT NULL DEFAULT 0,
-        proficiency INTEGER NOT NULL DEFAULT 100,
+        bingo INTEGER NOT NULL DEFAULT 0,
+        proficiency INTEGER NOT NULL DEFAULT 0,
         content TEXT
     );
     """
@@ -60,15 +60,15 @@ class Book:
     """
     
     book_load_query = """
-        SELECT word, count, wrong, right, proficiency, content FROM {tablename} where proficiency < 100
+        SELECT word, count, wrong, right, bingo, proficiency, content FROM {tablename} where proficiency < 100
     """
     
     book_update_wrong = """
-        UPDATE {tablename} SET wrong = wrong + 1, proficiency = proficiency + ? where word = ?
+        UPDATE {tablename} SET count = count + 1, wrong = wrong + 1, proficiency = proficiency + ?, bingo = 0 where word = ?
     """
     
     book_update_right = """
-        UPDATE {tablename} SET right = right + 1, proficiency = proficiency + ? where word = ?
+        UPDATE {tablename} SET count = count + 1, right = right + 1, proficiency = proficiency + ?, bingo = bingo + 1 where word = ?
     """
     
     def __init__(self, user:str, name:str, dictionary: stardict.StarDict):
@@ -76,7 +76,7 @@ class Book:
         self.words: list[Word] = []
         self.user = user
         self.name = name
-        self.tablename = f"{self.user}-{self.name}"
+        self.tablename = f"{self.user}_{self.name}"
         self.iter = 0
         self.dictionary = dictionary
         
@@ -86,12 +86,13 @@ class Book:
         '''
         f = open(os.path.join("book", self.name + ".txt"))
         try:
+            cursor.execute(self.book_create_table.format(tablename=self.tablename))
             lines = f.readlines()
             words = [ln[:-1] for ln in lines]
             for word in words:
                 info = self.dictionary.query(word)
                 if info is not None:
-                    cursor.execute(self.book_insert_word.format(tablename=self.tablename), (info.word, 0, 0, 0, 0, ""))
+                    cursor.execute(self.book_insert_word.format(tablename=self.tablename), (word, 0, 0, 0, 0, ""))
             
             connection.commit()
             
@@ -102,9 +103,6 @@ class Book:
         return len(self.words) == 0
     
     def exists(self) -> bool:
-        if not self.tablename.isalnum():
-            raise ValueError("Table name must be alphanumeric")
-        
         # Query to check if table exists
         query = "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
         cursor.execute(query, (self.tablename,))
@@ -136,6 +134,21 @@ class Book:
         
         return True
     
+    def right(self, word: Word):
+        word.count += 1
+        word.right += 1
+        word.bingo += 1
+        word.proficiency += word.bingo * 5
+        cursor.execute(self.book_update_right.format(tablename=self.tablename), (word.bingo * 5, word.word))
+        connection.commit()
+        
+    def wrong(self, word: Word):
+        word.count += 1
+        word.wrong += 1
+        word.proficiency += -word.proficiency // 2
+        cursor.execute(self.book_update_wrong.format(tablename=self.tablename), (-word.proficiency // 2, word.word))
+        connection.commit()
+        
     def __iter__(self):
         self.iter = 0
         return self
@@ -223,7 +236,7 @@ class CharSequence(pygame.sprite.Group):
         self.cursor = 0
 
     def press(self, char):
-        if self.cursor < len(self.sequence):
+        if self.cursor < len(self.sequence) and char > ord(' ') and char < ord('~'):
             self.sequence[self.cursor].press(char if type(char) == "str" else chr(char))
             self.cursor += 1
 
@@ -289,24 +302,24 @@ pygame.init()
 screen = pygame.display.set_mode((800, 600), 0, 32)
 # load font to display
 fonts = [
-    pygame.font.SysFont(["Microsoft YaHei", "SimHei", "Lucida Sans Unicode", "sans-serif"], 20),
+    pygame.font.SysFont(["Microsoft YaHei", "SimHei", "Lucida Sans Unicode", "dejavusans"], 20),
     pygame.font.SysFont("SimHei", 32), # Arial,Helvetica,Sans-Serif
-    pygame.font.SysFont("Arial", 24),
+    pygame.font.SysFont("Calibri", 24),
     pygame.font.SysFont("Microsoft YaHei", 24),
 ]
 
 # Calc the letter weight and height
-str=""
+letters=""
 for i in range(32, 126):
-    str += chr(i)
+    letters += chr(i)
 
-image = fonts[1].render(str, True, [255,255,255])
+image = fonts[1].render(letters, True, [255,255,255])
 image_rect = image.get_rect()
 letter_w = image_rect.width / 94
 letter_h = image_rect.height
 
 # load book and prepare the data
-b = Book('xuchenhao', 'M1U1', dictionary)
+b = Book('xuchenhao', 'm1u1', dictionary)
 b.load()
 
 running = True
@@ -319,8 +332,14 @@ for w in b:
     factor = 0.1
 
     g = pygame.sprite.Group()
-    g.add(Sprite(fonts[0].render(w.content["phonetic"], True, [255,255,255]), 10, 10))
-    g.add(Sprite(fonts[0].render(w.content["translation"], True, [255,255,255]), 10, 70))
+    g.add(Sprite(fonts[2].render(w.content["phonetic"], True, [255,255,255]), 10, 40))
+    if "translation" in w.content \
+        and w.content["translation"] is not None \
+        and type(w.content["translation"]) is str:
+            
+        translations = w.content["translation"].split("\n")
+        for i, translation in enumerate(translations):
+            g.add(Sprite(fonts[0].render(translation, True, [255,255,255]), 10, 70 + i * 30))
 
     # mp3 = "./pronunciation/" + sound + "/" + w.word + ".mp3"
     # if os.path.exists(mp3):
@@ -331,9 +350,10 @@ for w in b:
         tick = pygame.time.get_ticks()
 
         for event in pygame.event.get():
+            print(event.type, event.dict)
+
             if event.type == pygame.QUIT:
                 running = False
-
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
@@ -368,10 +388,9 @@ for w in b:
         break
 
     if s.check():
-        w.right += 1
-        w.proficiency += 1
+        b.right(w)
     else:
-        w.wrong += 1
+        b.wrong(w)
 else:
     print("finished.")
     pass

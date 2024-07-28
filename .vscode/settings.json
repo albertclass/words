@@ -3,5 +3,8 @@
     "python.analysis.typeCheckingMode": "basic",
     "python.autoComplete.extraPaths": [
         "../ECDICT/**"
+    ],
+    "python.analysis.extraPaths": [
+        "../ECDICT/**"
     ]
 }
