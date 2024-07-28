@@ -1,4 +1,5 @@
 *.log
 phonetic
 dict.db
+dict.db-journal
 users.db
