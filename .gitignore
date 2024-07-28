@@ -1,3 +1,4 @@
 *.log
+phonetic
 dict.db
 users.db
