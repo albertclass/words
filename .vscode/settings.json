@@ -1,10 +1,10 @@
 {
     "python.analysis.autoImportCompletions": true,
     "python.analysis.typeCheckingMode": "basic",
-    "python.autoComplete.extraPaths": [
-        "${workspaceFolder}/ECDICT/**"
-    ],
     "python.analysis.extraPaths": [
+        "./ECDICT"
+    ],
+    "python.autoComplete.extraPaths": [
         "${workspaceFolder}/ECDICT/**"
     ]
 }

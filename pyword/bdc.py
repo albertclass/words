@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 import pygame
 import sqlite3
 import logging
@@ -39,7 +40,8 @@ class Word:
     proficiency: int = 0
     content: dict[str,str] = field(default_factory=dict[str,str])
     sound: pygame.mixer.Sound | None = None
-    
+    delta: int = 100
+
     def play(self):
         if self.sound is None:
             filepath = os.path.join(os.path.abspath("./"), self.content["audio"])
@@ -69,15 +71,15 @@ class Book:
     """
     
     book_load_query = """
-        SELECT word, count, wrong, right, bingo, proficiency, content FROM {tablename} where proficiency < 100
+        SELECT word, count, wrong, right, bingo, proficiency, content FROM {tablename}
     """
     
     book_update_wrong = """
-        UPDATE {tablename} SET count = count + 1, wrong = wrong + 1, proficiency = proficiency + ?, bingo = 0 where word = ?
+        UPDATE {tablename} SET count = count + 1, wrong = wrong + 1, proficiency = ?, bingo = 0 where word = ?
     """
     
     book_update_right = """
-        UPDATE {tablename} SET count = count + 1, right = right + 1, proficiency = proficiency + ?, bingo = bingo + 1 where word = ?
+        UPDATE {tablename} SET count = count + 1, right = right + 1, proficiency = ?, bingo = bingo + 1 where word = ?
     """
     
     dict_update_audio = """
@@ -147,6 +149,11 @@ class Book:
             audios = {}
             for row in cursor.fetchall():
                 w = Word(*row)
+                w.bingo = 0
+                w.delta = 50 if w.count == 0 else int(100 * (w.right / w.count))
+                w.proficiency = 0 if w.count == 0 else int(100 * (w.right / w.count))
+                if w.proficiency > 95:
+                    continue
                 info = self.dictionary.query(w.word)
                 if info is not None:
                     if info["audio"] is None or info["audio"] == "":
@@ -157,7 +164,7 @@ class Book:
                         
                     w.content = info
                     self.words.append(w)
-
+            # Update the audio to db if audio is not exists.
             self.updateAudio(audios)
         except Exception as e:
             logging.error(f"{type(e)} - {e}")
@@ -168,16 +175,20 @@ class Book:
     def right(self, word: Word):
         word.count += 1
         word.right += 1
-        word.bingo += 1
-        word.proficiency += word.bingo * 5
-        cursor.execute(self.book_update_right.format(tablename=self.tablename), (word.bingo * 5, word.word))
+        word.bingo = max(0, word.bingo) + 1
+        word.proficiency += max(5, int(word.delta * 1.00) + word.bingo * 5) # less than 5 point to inc
+        word.delta = int(100 * (w.right / w.count))
+        cursor.execute(self.book_update_right.format(tablename=self.tablename), (word.proficiency, word.word))
         connection.commit()
         
     def wrong(self, word: Word):
         word.count += 1
         word.wrong += 1
-        word.proficiency += -word.proficiency // 2
-        cursor.execute(self.book_update_wrong.format(tablename=self.tablename), (-word.proficiency // 2, word.word))
+        word.bingo = min(0, word.bingo) - 1
+        word.proficiency -= max(5, int(word.delta * 1.25) + word.bingo * 5) # more than 5 point to dec
+        word.proficiency = max(0, word.proficiency) # 熟练度最小为0
+        word.delta = int(100 * (w.right / w.count))
+        cursor.execute(self.book_update_wrong.format(tablename=self.tablename), (word.proficiency, word.word))
         connection.commit()
         
     def __iter__(self):
@@ -194,7 +205,7 @@ class Book:
         while len(self.words):
             word = self.words[self.iter % len(self.words)]
             if word.proficiency > 100:
-                del self.words[self.iter % len(self.words)] 
+                del self.words[self.iter % len(self.words)]
             else:
                 self.iter += 1
                 return word
@@ -267,8 +278,8 @@ class CharSequence(pygame.sprite.Group):
         self.cursor = 0
 
     def press(self, char):
-        if self.cursor < len(self.sequence) and char > ord(' ') and char < ord('~'):
-            self.sequence[self.cursor].press(char if type(char) == "str" else chr(char))
+        if self.cursor < len(self.sequence) and ord(char) > ord(' ') and ord(char) < ord('~'):
+            self.sequence[self.cursor].press(char if type(char) == str else chr(char))
             self.cursor += 1
 
     def delete(self):
@@ -291,7 +302,9 @@ class CharSequence(pygame.sprite.Group):
                 self.complate = True
 
         return self.judge
-
+    def is_empty(self):
+        return self.cursor == 0
+    
     def reset(self):
         for ch in self.sequence:
             ch.reset()
@@ -356,7 +369,7 @@ letter_w = letters_image_rc.width // 94
 letter_h = letters_image_rc.height
 
 # load book and prepare the data
-b = Book('xuchenhao', 'm1u1', dictionary)
+b = Book('xuchenhao', '20240810', dictionary)
 b.load()
 
 running = True
@@ -371,7 +384,7 @@ for w in b:
     s = CharSequence(w.word, screen.get_size())
     g = pygame.sprite.Group()
     # show the phonetic
-    g.add(Sprite(fonts[2].render(w.content["phonetic"], True, [255,255,255]), 10, 40))
+    # g.add(Sprite(fonts[2].render(w.content["phonetic"], True, [255,255,255]), 10, 40))
     # show the explain
     if "translation" in w.content \
         and w.content["translation"] is not None \
@@ -382,11 +395,13 @@ for w in b:
             g.add(Sprite(fonts[0].render(translation, True, [255,255,255]), 10, 70 + i * 30))
 
     wrong = 0
+    # wait = pygame.time.get_ticks()
+    crack = False
     while running and not s.complated():
         tick = pygame.time.get_ticks()
-
+            
         for event in pygame.event.get():
-            print(event.type, event.dict)
+            # print(event.type, event.dict)
 
             if event.type == pygame.QUIT:
                 running = False
@@ -400,30 +415,49 @@ for w in b:
                 elif event.key == pygame.K_DELETE:
                     s.delete()
                 elif event.key == pygame.K_RETURN:
-                    if s.check() == False:
+                    if s.is_empty():
+                        crack = True
+                        # show correct spelling, if wrong more than 3 times
+                        answer = fonts[3].render(w.word, True, [200,0,100])
+                        answer_rect = answer.get_rect()
+                        pos_x = (800 - answer_rect.width) // 2
+                        pos_y = (600 - answer_rect.height) // 2
+                        g.add(Sprite(answer, pos_x, pos_y))
+                        s.reset()
+                        w.play()
+                    elif s.check() == False:
+                        # 回答错误，错误次数 +1
                         wrong += 1
                         b.wrong(w)
                         s.reset()
                         
-                        if wrong > 2:
-                            # play the pronunciation, if wrong more than 2 times
+                        if wrong == 1:
+                            # play the pronunciation, if wrong more than 1 times
                             w.play()
-                        
-                        if wrong > 4:
-                            # show correct spelling, if wrong more than 5 times
+                        if wrong == 2:
+                            # show the phonetic symbol, if wrong more than 2 times
+                            g.add(Pronunciation(w.content["phonetic"], 10, 40, fonts[2]))
+                        if wrong == 3:
+                            # show correct spelling, if wrong more than 3 times
                             answer = fonts[3].render(w.word, True, [200,0,100])
                             answer_rect = answer.get_rect()
                             pos_x = (800 - answer_rect.width) // 2
                             pos_y = (600 - answer_rect.height) // 2
                             g.add(Sprite(answer, pos_x, pos_y))
                             break
-                else:
-                    s.press(event.key)
-
+                    elif not crack:
+                        # 回答正确，正确次数 +1
+                        b.right(w)
+                        pygame.time.wait(1000)
+                # elif event.mod & pygame.KMOD_SHIFT:
+                #     s.press(event.key)
+                elif len(event.unicode) > 0:
+                    s.press(event.unicode)
+                    
         screen.fill((0,0,0))
 
-        screen.blit(fonts[0].render("评价：%.1f 分" % (w.proficiency), True, (255,255,255)), (300, 10))
-        screen.blit(fonts[0].render("用时：%5.2f 秒" % (tick/1000), True, (255,255,255)), (580, 10))
+        screen.blit(fonts[0].render(f"评价：{w.proficiency:1f} 分", True, (255,255,255)), (300, 10))
+        screen.blit(fonts[0].render(f"用时：{tick/1000:5.2f} 秒", True, (255,255,255)), (580, 10))
         
         s.update(tick)
         s.draw(screen)
@@ -436,11 +470,6 @@ for w in b:
 
     if not running:
         break
-
-    if s.check():
-        b.right(w)
-    else:
-        b.wrong(w)
 else:
     print("finished.")
     pass
