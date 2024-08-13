@@ -15,8 +15,9 @@
         {
             "name": "Python: Launch Main",
             "type": "debugpy",
+            "justMyCode": false,
             "request": "launch",
-            "program": "${workspaceFolder}/pyword/bdc.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}"
         }
