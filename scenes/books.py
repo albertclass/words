@@ -129,6 +129,10 @@ class BooksScene(utils.Scene):
         self.__index: int = 0 # 当前页中的索引
         self.__offset: int = 0 # 当前页
         self.__itemPrePage: int = self.__area.height // self.__root.Size()[1] # 每页显示的项目数
+        
+        self.__key_down_time: int = 0
+        self.__key_dwon_interval: int = 100
+        self.__key_down_event: pygame.event.Event | None = None
     
     def __nextItem(self) -> None:
         self.__index += 1
@@ -213,9 +217,12 @@ class BooksScene(utils.Scene):
                 # select file
                 self.__selectFile = file
                 utils.SceneManager.Switch("Remember")
+        self.__key_down_time = pygame.time.get_ticks()
+        self.__key_down_event = event
     
     def _onKeyUp(self, event: pygame.event.Event) -> None:
-        pass
+        self.__key_down_event = None
+        self.__key_down_time = 0
     
     def _onMouseMove(self, event: pygame.event.Event) -> None:
         pass
@@ -230,6 +237,9 @@ class BooksScene(utils.Scene):
         return self.__selectFile
     
     def Update(self, *args, **kwargs) -> bool:
+        if self.__key_down_event is not None and pygame.time.get_ticks() - self.__key_down_time > self.__key_dwon_interval:
+            self._onKeyDown(self.__key_down_event)
+        
         self.__group.update(*args, **kwargs)
         return True
     
