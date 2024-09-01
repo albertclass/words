@@ -6,14 +6,16 @@ from dataclasses import dataclass, field
 @dataclass
 class Word:
     word: str = field(init=True)
-    count: int = 0
-    wrong: int = 0
-    right: int = 0
+    totalCount: int = 0
+    totalWrong: int = 0
+    totalRight: int = 0
     bingo: int = 0
     proficiency: int = 0
     content: dict[str,str] = field(default_factory=dict[str,str])
     sound: pygame.mixer.Sound | None = None
     delta: int = 100
+    wrong: int = 0
+    right: int = 0
 
     def play(self):
         if self.sound is None:
@@ -66,7 +68,7 @@ class Letter(utils.Sprite):
     '''
     单词拼写字母。
     '''
-    def __init__(self, char: str, x = 0, y = 0, font: pygame.font.Font | str = "Calibri"):
+    def __init__(self, char: str, x = 0, y = 0, font: pygame.font.Font | str = "Consolas"):
         if type(font) == str:
             font = utils.FontManager.GetFont(font, 24)
         elif type(font) == pygame.font.Font:
@@ -91,7 +93,7 @@ class Letter(utils.Sprite):
         val = ord(char)
         if val >= ord(' ') and val <= ord('~'):
             self.type = char
-            self.UpdateSurface(self.font.render(char, True, [255,255,255]))
+            self.UpdateSurface(self.font.render(char, True, [255,255,255]), )
 
     def reset(self):
         self.set('_')
@@ -101,30 +103,33 @@ class Letter(utils.Sprite):
 
     def correct(self):
         return self.type == self.char
-
+    
 class CharSequence(pygame.sprite.Group):
-    def __init__(self, word, x, y, font: pygame.font.Font | str = "Calibri"):
+    def __init__(self, word, x, y, font: pygame.font.Font):
         super().__init__()
         self.sequence: list[Letter] = []
         self.judge = False
         self.complate = False
 
-        self.x = x
-        self.y = y
-
-        self.__width = self.x
+        self.__max_character_width = 0
         self.__height = 0
+        self.__character_span = 2
+        self.font = font
+        for char in word:
+            self.__max_character_width = max(self.font.size(char)[0], self.__max_character_width)
+            self.__height = max(self.font.size(char)[1], self.__height)
+            
+        self.__width  = self.__max_character_width * len(word) + (len(word) - 1) * self.__character_span
+        self.x = x - self.__width // 2
+        self.y = y - self.__height // 2
+
         self.__word = word
         
-        for char in word:
-            letter = Letter(char, self.__width, self.y, font)
+        for idx in range(len(word)):
+            letter = Letter(word[idx], self.x + idx * (self.__max_character_width + self.__character_span), self.y, font)
             self.sequence.append(letter)
             letter_size = letter.size()
-            self.__width += letter_size[0] + 1
-
-        # add to group
-        for letter in self.sequence:
-            self.__height = max(self.__height, letter.size()[1])
+            self.__width += letter_size[0] + self.__character_span
             self.add(letter)
 
         self.cursor = 0
@@ -169,3 +174,16 @@ class CharSequence(pygame.sprite.Group):
         
     def complated(self):
         return self.complate
+
+    def width(self):
+        return self.__width
+    
+    def height(self):
+        return self.__height
+    
+    def moveto(self, x, y):
+        self.x = x - self.__width // 2
+        self.y = y - self.__height // 2
+        
+        for idx in range(len(self.sequence)):
+            self.sequence[idx].MoveTo(self.x + idx * (self.__max_character_width + self.__character_span), self.y)

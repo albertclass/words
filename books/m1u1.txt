@@ -9,3 +9,5 @@ dance
 draw
 write
 read
+quarter
+recognise

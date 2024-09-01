@@ -1,11 +1,12 @@
 from __future__ import annotations
+from tkinter import N
 import pygame
 from enum import Enum
 
 class Sprite(pygame.sprite.DirtySprite):
     def __init__(self, surface: pygame.Surface, x: int = 0, y: int = 0, *args, **kwargs):
         '''
-        **kwargs: width: int, height: int
+        **kwargs: width: int, height: int, origin: tuple[int,int], surface_area: pygame.Rect, groups: list[pygame.sprite.Group]
         '''
         groups = []
         if "groups" in kwargs:
@@ -13,53 +14,76 @@ class Sprite(pygame.sprite.DirtySprite):
             del kwargs["groups"]
             
         super().__init__(*groups)
-        self.surface = surface
+        self.__surface = surface
 
-        if "origin" in kwargs:
-            self.origin: tuple[int,int] = kwargs["origin"]
-        else:
-            self.origin: tuple[int,int] = (0, 0)
+        if "surface_area" in kwargs and isinstance(kwargs["surface_area"], pygame.Rect):
+            self._area: pygame.Rect = kwargs["surface_area"]
             
+        if "origin" in kwargs and isinstance(kwargs["origin"], tuple):
+            origin = kwargs["origin"]
+            self._area: pygame.Rect = pygame.Rect(int(origin[0]), int(origin[1]), surface.get_width(), surface.get_height())
+        else:
+            self._area: pygame.Rect = pygame.Rect(0, 0, surface.get_width(), surface.get_height())
+        
+        self._stretch: bool = False
+        width = 0
         if "width" in kwargs:
-            self.width: int = min(kwargs["width"], surface.get_width() - self.origin[0])
+            width: int = kwargs["width"]
         else:
-            self.width: int = surface.get_width() - self.origin[0]
+            width: int = self._area.width
             
+        height = 0
         if "height" in kwargs:
-            self.height: int = min(kwargs["height"], surface.get_height() - self.origin[1])
+            height: int = kwargs["height"]
         else:
-            self.height: int = surface.get_height() - self.origin[1]
+            height: int = self._area.height
 
-        self.image = surface.subsurface(pygame.Rect(self.origin[0], self.origin[1], self.width, self.height))
-        self.rect = pygame.Rect(x, y, self.width, self.height)
+        self._size = (width, height)
+
+        if self._size[0] != self._area.width or self._size[1] != self._area.height:
+            self.image = pygame.transform.scale(surface.subsurface(self._area),(width, height))
+        else:
+            self.image = surface.subsurface(self._area)
+        
+        self.rect = pygame.Rect(x, y, width, height)
     
     def Size(self) -> tuple[int,int]:
-        return (self.height, self.width)
+        return self._size
 
     def MoveTo(self, x: int, y: int):
-        self.rect.x = x
-        self.rect.y = y
+        if self.rect is not None:
+            self.rect.x = x
+            self.rect.y = y
         
     def Offset(self, dx: int, dy: int):
-        self.rect.move_ip(dx, dy)
+        if self.rect is not None:
+            self.rect.move_ip(dx, dy)
         
-    def UpdateView(self, origin: tuple[int,int]):
-        self.origin = origin
-        self.image = self.surface.subsurface(pygame.Rect(self.origin[0], self.origin[1], self.width, self.height))
+    def UpdateView(self, origin: tuple[int,int], size: tuple[int,int] | None = None):
+        size = size or self._area.size
+        w, h = size
+        if origin[0] + size[0] > self.__surface.get_width():
+            w = self.__surface.get_width() - origin[0]
+        
+        if origin[1] + size[1] > self.__surface.get_height():
+            h = self.__surface.get_height() - origin[1]
+            
+        self._area = pygame.Rect(origin[0], origin[1], w, h)
+        self.image = self.__surface.subsurface(self._area)
         
     def UpdateSurface(self, surface: pygame.Surface, w: int = 0, h: int = 0):
-        self.surface = surface
+        self.__surface = surface
         if w > 0:
-            self.width = min(w, self.width)
+            self._area.width = min(w, self._area.width)
         else:
-            self.width = surface.get_width() - self.origin[0]
+            self._area.width = surface.get_width() - self._area.x
             
         if h > 0:
-            self.height = min(h, self.height)
+            self._area.height = min(h, self._area.height)
         else:
-            self.height = surface.get_height() - self.origin[1]
+            self._area.height = surface.get_height() - self._area.y
             
-        self.image = surface.subsurface(pygame.Rect(self.origin[0], self.origin[1], self.width, self.height))
+        self.image = surface.subsurface(self._area)
         
 class SpriteFrameAnim(Sprite):
     class Mode(Enum):
@@ -91,7 +115,7 @@ class SpriteFrameAnim(Sprite):
         else:
             height = surface.get_height() // row
             
-        super().__init__(surface, x, y, width = width, height = height, *args, **kwargs)
+        super().__init__(surface, x, y, width = width, height = height, *args, **kwargs)        
         if "mode" in kwargs:
             self.mode: SpriteFrameAnim.Mode = kwargs["mode"]
         else:
@@ -125,7 +149,7 @@ class SpriteFrameAnim(Sprite):
             return
         
         self.index = index
-        self.UpdateView((row * self.width, col * self.height))
+        self.UpdateView((row * self._size[0], col * self._size[1]))
     
     def NextFrame(self):
         if self.play == SpriteFrameAnim.PlayMode.REVERSE:
@@ -153,7 +177,7 @@ class SpriteFrameAnim(Sprite):
             row = self.index // self.total_col
             col = self.index % self.total_col
         
-        self.UpdateView((col * self.width, row * self.height))
+        self.UpdateView((col * self._area.width, row * self._area.height))
         
     def update(self, *args, **kwargs):
         dt = 1000 if pygame.time.get_ticks() - self.tick > 1000 else pygame.time.get_ticks() - self.tick

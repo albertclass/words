@@ -6,25 +6,26 @@ from .fonts import FontManager
 fonts = FontManager()
 
 class Scene(ABC):
-    def __init__(self, title: str, width: int, height: int):
+    def __init__(self, title: str, size: tuple[int, int], span: int = 2, border: int = 1):
         self._title = title
-        self._width = width
-        self._height = height
+        self._size = size
+        self._span = span
+        self._border = border
     
     def width(self) -> int:
-        return self._width
+        return self._size[0]
     
     def height(self) -> int:
-        return self._height
+        return self._size[1]
     
     def title(self) -> str:
         return self._title
     
     def size(self) -> tuple[int,int]:
-        return (self._width, self._height)
+        return self._size
     
     def center(self) -> tuple[int,int]:
-        return (self._width // 2, self._height // 2)
+        return (self._size[0] // 2, self._size[1] // 2)
     
     @abstractmethod
     def _onEnter(self, prevScene: Scene | None) -> None:

@@ -1,6 +1,6 @@
 import os
 import sqlite3
-import pygame
+import random
 import stardict
 import utils
 import logging
@@ -49,9 +49,10 @@ class Book:
     
     def __init__(self, user: str):
         self.dirty = False
-        self.words: list[Word] = []
-        self.user = user
-        self.iter = 0
+        self.__words: list[Word] = []
+        self.__user = user
+        self.__iter = 0
+        self.__round = 0
     
     def __new(self, pathname: str | os.PathLike, dictionary: stardict.StarDict):
         '''
@@ -62,6 +63,8 @@ class Book:
             cursor.execute(self.__book_create_table.format(tablename=self.__tablename))
             lines = f.readlines()
             words = [ln[:-1] for ln in lines]
+            # shuffle the list
+            random.shuffle(words)
             for word in words:
                 info = dictionary.query(word)
                 if info is not None:
@@ -73,7 +76,7 @@ class Book:
             print(e)
 
     def isEmpty(self):
-        return len(self.words) == 0
+        return len(self.__words) == 0
     
     def updateAudio(self, audios: dict[str,str]):
         connection = sqlite3.connect('dict.db')
@@ -101,7 +104,7 @@ class Book:
         
         name, _ = os.path.basename(pathname).split(".")
         name = name.replace(" ", "_").replace("-", "_").replace(".", "_")
-        self.__tablename = f"book_{self.user}_{name}"
+        self.__tablename = f"book_{self.__user}_{name}"
         return self.__tablename
     
     def load(self, pathname: str, dictionary: stardict.StarDict) -> bool:
@@ -124,9 +127,10 @@ class Book:
             for row in cursor.fetchall():
                 w = Word(*row)
                 w.bingo = 0
-                w.delta = 50 if w.count == 0 else int(100 * (w.right / w.count))
-                w.proficiency = 0 if w.count == 0 else int(100 * (w.right / w.count))
+                w.delta = 50
+                w.proficiency = 0 if w.totalCount == 0 else int(100 * (w.totalRight / w.totalCount))
                 if w.proficiency > 95:
+                    print(f"Skip word: {w.word}, Proficiency: {w.proficiency}")
                     continue
                 info = dictionary.query(w.word)
                 if info is not None:
@@ -144,7 +148,7 @@ class Book:
                         
                     w.content = info
                     
-                self.words.append(w)
+                self.__words.append(w)
             # Update the audio to db if audio is not exists.
             if len(audios) > 0:
                 self.updateAudio(audios)
@@ -155,41 +159,60 @@ class Book:
         return True
     
     def right(self, word: Word):
-        word.count += 1
+        word.totalCount += 1
+        word.totalRight += 1
         word.right += 1
         word.bingo = max(0, word.bingo) + 1
         word.proficiency += max(5, int(word.delta * 1.00) + word.bingo * 5) # less than 5 point to inc
-        word.delta = int(100 * (word.right / word.count))
+        word.delta += max(5, 5*word.bingo)
         cursor.execute(self.__book_update_right.format(tablename=self.__tablename), (word.proficiency, word.word))
         connection.commit()
         
     def wrong(self, word: Word):
-        word.count += 1
+        word.totalCount += 1
+        word.totalWrong += 1
         word.wrong += 1
         word.bingo = min(0, word.bingo) - 1
-        word.proficiency -= max(5, int(word.delta * 1.25) + word.bingo * 5) # more than 5 point to dec
+        word.proficiency -= max(5, int(word.delta * 1.05) + word.bingo * 5) # more than 5 point to dec
         word.proficiency = max(0, word.proficiency) # 熟练度最小为0
-        word.delta = int(100 * (word.right / word.count))
+        word.delta += max(-5, 5*word.bingo)
         cursor.execute(self.__book_update_wrong.format(tablename=self.__tablename), (word.proficiency, word.word))
         connection.commit()
         
     def __iter__(self):
-        self.iter = 0
+        self.__iter = 0
         return self
 
     def __next__(self):
         '''
         单词迭代，背会的单词会被从列表中剔除。
         '''
-        if len(self.words) == 0:
-            raise StopIteration
         
-        while len(self.words):
-            word = self.words[self.iter % len(self.words)]
-            if word.proficiency > 100:
-                del self.words[self.iter % len(self.words)]
-            else:
-                self.iter += 1
-                return word
-        else:
+        if len(self.__words) == 0:
             raise StopIteration
+
+        if self.__iter % len(self.__words) == 0:
+            self.__round += 1
+            words : list[Word] = []
+            for idx, word in enumerate(self.__words):
+                if word.proficiency > 100:
+                    continue
+                
+                words.append(word)
+            
+            self.__words = words
+            if len(self.__words) == 0:
+                raise StopIteration
+
+        word = self.__words[self.__iter % len(self.__words)]
+        self.__iter += 1
+        return word
+        
+    def index(self):
+        return self.__iter % len(self.__words)
+    
+    def length(self):
+        return len(self.__words)
+    
+    def round(self):
+        return self.__round

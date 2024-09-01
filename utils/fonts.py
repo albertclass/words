@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import pygame
 import hashlib
 from typing import Hashable, Iterable
@@ -45,7 +46,16 @@ class FontManager:
         get font
         '''
         sign = self.__FontSign(name, size, bold, italic)
-        if name not in self.fonts:
+        if type(name) is str:
+            filename = name
+            
+        if type(name) is bytes:
+            filename = name.decode()
+
+        if os.path.exists(filename):
+            self.fonts[sign] = pygame.font.Font(filename, size)
+            
+        if sign not in self.fonts:
             self.fonts[sign] = pygame.font.SysFont(name, size, bold, italic)
             
         return self.fonts[sign]

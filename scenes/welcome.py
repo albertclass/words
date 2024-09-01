@@ -7,28 +7,27 @@ import pygame
 import utils
 
 class WelcomeScene(utils.Scene):
-    def __init__(self, width: int, height: int):
-        super().__init__("Welcome", width, height)
-        self.font = (["SimHei", "Lucida Sans Unicode"], 64)
-        self.static : pygame.sprite.Group = pygame.sprite.Group()
+    def __init__(self, size):
+        super().__init__("Welcome", size)
+        self._application : pygame.sprite.Group = pygame.sprite.Group()
     
         background = pygame.image.load("images/startup.png")
-        self.static.add(utils.Sprite(background, 0, 0, width = width, height = height))
+        self._application.add(utils.Sprite(background, 0, 0, width = self.width(), height = self.height(), stretch = True))
         
         size = self.size()
-        font = utils.FontManager.GetFont("SimHei", 64)
+        font = utils.FontManager.GetFont("font/msyh.ttc", 64)
         text = font.render("兔哥背单词", True, (255, 255, 255))
-        pygame.draw.rect(text, (128, 128, 128), (0, 0, text.get_width(), text.get_height()), 1, 5)
+        # pygame.draw.rect(text, (128, 128, 128), (0, 0, text.get_width(), text.get_height()), 1, 5)
         
         pos = utils.CenterPos(text, size)
         welcome = utils.Sprite(text, pos[0], pos[1])
-        self.static.add(welcome)
+        self._application.add(welcome)
         
-        versionFont = utils.FontManager.GetFont("SimHei", 16)
+        versionFont = utils.FontManager.GetFont("font/msyh.ttc", 16)
         versionText = versionFont.render("Ver 1.0.0", True, (255, 255, 0))
 
         versionSprite = utils.Sprite(versionText, size[0] - versionText.get_width() - 5, size[1] - versionFont.get_height() - 5)
-        self.static.add(versionSprite)
+        self._application.add(versionSprite)
         
         tipsFont = utils.FontManager.GetFont("华文楷体", 32)
         tipsFontSize = tipsFont.size("按任意键开始")
@@ -78,21 +77,21 @@ class WelcomeScene(utils.Scene):
     def Update(self, *args, **kwargs) -> bool:
         if not self.__tips_added and utils.ResourceManager.is_done():
             self.__tips_added = True
-            self.static.add(self.__tips)
+            self._application.add(self.__tips)
     
-        self.static.update(*args, **kwargs)
+        self._application.update(*args, **kwargs)
 
         return True
 
     def Draw(self, surface: pygame.Surface) -> None:
         surface.fill((0,0,0))
-        self.static.draw(surface)
+        self._application.draw(surface)
     
 if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((800, 600))
     pygame.display.set_caption("兔哥背单词")
-    scene = WelcomeScene(800, 600)
+    scene = WelcomeScene((800, 600))
     
     utils.SceneManager.AddScene("Welcome", scene, True)
         
