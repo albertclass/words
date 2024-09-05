@@ -12,9 +12,8 @@ class WelcomeScene(utils.Scene):
         self._application : pygame.sprite.Group = pygame.sprite.Group()
     
         background = pygame.image.load("images/startup.png")
-        self._application.add(utils.Sprite(background, 0, 0, width = self.width(), height = self.height(), stretch = True))
+        self._application.add(utils.Sprite(background, 0, 0, width = self.width, height = self.height, stretch = True))
         
-        size = self.size()
         font = utils.FontManager.GetFont("font/msyh.ttc", 64)
         text = font.render("兔哥背单词", True, (255, 255, 255))
         # pygame.draw.rect(text, (128, 128, 128), (0, 0, text.get_width(), text.get_height()), 1, 5)
@@ -33,25 +32,48 @@ class WelcomeScene(utils.Scene):
         tipsFontSize = tipsFont.size("按任意键开始")
         
         frame = 25
-        tipsText = pygame.Surface((tipsFontSize[0], tipsFontSize[1] * frame))
-        tipsText.set_colorkey((0, 0, 0))
-        # tipsText.fill((0, 0, 0))
+        testgroup = pygame.sprite.Group()
+
+        self._tips = pygame.sprite.Group()
+        self.__loadResourceText = pygame.Surface((tipsFontSize[0], tipsFontSize[1] * frame))
+        self.__loadResourceText.set_colorkey((0, 0, 0))
         
         for i in range(frame):
             color = 127 + i * (128 // frame)
-            tipsText.blit(tipsFont.render("按任意键开始", True, (color, color, color)), (0, i * tipsFontSize[1]))
+            self.__loadResourceText.blit(tipsFont.render("正在加载资源...", True, (color, color, color)), (0, i * tipsFontSize[1]))
+            
+        self.__tipsText = pygame.Surface((tipsFontSize[0], tipsFontSize[1] * frame))
+        self.__tipsText.set_colorkey((0, 0, 0))
+        # tipsText.fill((0, 0, 0))
+
+        for i in range(frame):
+            color = 127 + i * (128 // frame)
+            self.__tipsText.blit(tipsFont.render("按任意键开始", True, (color, color, color)), (0, i * tipsFontSize[1]))
         
-        pos = utils.CenterPos(tipsText, size)
-        self.__tips = utils.SpriteFrameAnim(tipsText, 
+        pos = utils.CenterPos(self.__loadResourceText, size)
+        self.__loadResourceTextAnim = utils.SpriteFrameAnim(self.__loadResourceText, 
             pos[0], # position x
-            self.height() - tipsFontSize[1], # position y
+            self.height - tipsFontSize[1], # position y
             frame, # row
             1, # col
             mode = utils.SpriteFrameAnimMode.COL, # frame mode
             play = utils.SpriteFrameAnimPlayMode.REVERSE, # play mode
             interval = 0.04
         )
+
+        pos = utils.CenterPos(self.__tipsText, size)
+        self.__tipsTextAnim = utils.SpriteFrameAnim(self.__tipsText, 
+            pos[0], # position x
+            self.height - tipsFontSize[1], # position y
+            frame, # row
+            1, # col
+            mode = utils.SpriteFrameAnimMode.COL, # frame mode
+            play = utils.SpriteFrameAnimPlayMode.REVERSE, # play mode
+            interval = 0.04
+        )
+
         self.__tips_added = False
+        self._tips.add(self.__loadResourceTextAnim)
         
     def _onEnter(self, prevScene: utils.Scene | None) -> None:
         utils.ResourceManager.add("phonetic/en.zip")
@@ -60,7 +82,8 @@ class WelcomeScene(utils.Scene):
         print("Leave Welcome")
     
     def _onKeyDown(self, event: pygame.event.Event) -> None:
-        utils.SceneManager.Switch("Books")
+        if utils.ResourceManager.is_done():
+            utils.SceneManager.Switch("Books")
     
     def _onKeyUp(self, event: pygame.event.Event) -> None:
         print(f"Key Up: {event.key}")
@@ -74,24 +97,29 @@ class WelcomeScene(utils.Scene):
     def _onMouseButtonUp(self, event: pygame.event.Event) -> None:
         pass
 
+    def _onUIEvent(self, event: pygame.Event) -> None:
+        pass
+    
     def Update(self, *args, **kwargs) -> bool:
         if not self.__tips_added and utils.ResourceManager.is_done():
             self.__tips_added = True
-            self._application.add(self.__tips)
+            self._tips.empty()
+            self._tips.add(self.__tipsTextAnim)
     
-        self._application.update(*args, **kwargs)
+        self._tips.update(*args, **kwargs)
 
         return True
 
     def Draw(self, surface: pygame.Surface) -> None:
         surface.fill((0,0,0))
         self._application.draw(surface)
-    
+        self._tips.draw(surface)
+        
 if __name__ == "__main__":
     pygame.init()
-    screen = pygame.display.set_mode((800, 600))
+    screen = pygame.display.set_mode((1280, 1024))
     pygame.display.set_caption("兔哥背单词")
-    scene = WelcomeScene((800, 600))
+    scene = WelcomeScene((1280, 1024))
     
     utils.SceneManager.AddScene("Welcome", scene, True)
         

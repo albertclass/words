@@ -4,6 +4,7 @@ import random
 import stardict
 import utils
 import logging
+import hashlib
 from .word import Word
 
 # Connect to the SQLite database
@@ -101,10 +102,10 @@ class Book:
         
         if pathname is None:
             return None
-        
-        name, _ = os.path.basename(pathname).split(".")
-        name = name.replace(" ", "_").replace("-", "_").replace(".", "_")
-        self.__tablename = f"book_{self.__user}_{name}"
+
+        sha1 = hashlib.sha1()
+        sha1.update(str(pathname).encode())
+        self.__tablename = f'{self.__user}_{sha1.hexdigest()}'
         return self.__tablename
     
     def load(self, pathname: str, dictionary: stardict.StarDict) -> bool:

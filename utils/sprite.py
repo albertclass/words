@@ -16,29 +16,28 @@ class Sprite(pygame.sprite.DirtySprite):
         super().__init__(*groups)
         self.__surface = surface
 
-        if "surface_area" in kwargs and isinstance(kwargs["surface_area"], pygame.Rect):
-            self._area: pygame.Rect = kwargs["surface_area"]
-            
-        if "origin" in kwargs and isinstance(kwargs["origin"], tuple):
-            origin = kwargs["origin"]
-            self._area: pygame.Rect = pygame.Rect(int(origin[0]), int(origin[1]), surface.get_width(), surface.get_height())
-        else:
-            self._area: pygame.Rect = pygame.Rect(0, 0, surface.get_width(), surface.get_height())
-        
         self._stretch: bool = False
         width = 0
         if "width" in kwargs:
             width: int = kwargs["width"]
         else:
-            width: int = self._area.width
+            width: int = self.__surface.get_width()
             
         height = 0
         if "height" in kwargs:
             height: int = kwargs["height"]
         else:
-            height: int = self._area.height
+            height: int = self.__surface.get_height()
 
         self._size = (width, height)
+
+        if "surface_area" in kwargs and isinstance(kwargs["surface_area"], pygame.Rect):
+            self._area: pygame.Rect = kwargs["surface_area"]
+        elif "origin" in kwargs and isinstance(kwargs["origin"], tuple):
+            origin = kwargs["origin"]
+            self._area: pygame.Rect = pygame.Rect(int(origin[0]), int(origin[1]), min(width, surface.get_width() - origin[0]), min(height, surface.get_height() - origin[1]))
+        else:
+            self._area: pygame.Rect = pygame.Rect(0, 0, min(width, surface.get_width()), min(height, surface.get_height()))
 
         if self._size[0] != self._area.width or self._size[1] != self._area.height:
             self.image = pygame.transform.scale(surface.subsurface(self._area),(width, height))
@@ -115,7 +114,7 @@ class SpriteFrameAnim(Sprite):
         else:
             height = surface.get_height() // row
             
-        super().__init__(surface, x, y, width = width, height = height, *args, **kwargs)        
+        super().__init__(surface, x, y, width = width, height = height, *args, **kwargs)
         if "mode" in kwargs:
             self.mode: SpriteFrameAnim.Mode = kwargs["mode"]
         else:

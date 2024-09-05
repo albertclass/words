@@ -1,15 +1,15 @@
 from __future__ import annotations
 import os
 import sys
+import random
 from typing import Iterable
 
-from utils.fonts import FontManager
 if __name__ == "__main__":
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import pygame
 import utils
-from scenes import BooksScene
+from scenes import PrepareScene
 from core import Book, Word, CharSequence
 import stardict
 
@@ -31,16 +31,18 @@ class RememberScene(utils.Scene):
         self.__word_waiting_from: int = 0
         self.__word_status: int = 0 # 0: enter， 1：right， 2：waiting for next
         self.__currentSequence = None
+        self.__firework_lasttime = pygame.time.get_ticks()
+        self.__fireworks = utils.Fireworks()
         
     def _onEnter(self, prevScene: utils.Scene | None) -> None:
-        if not isinstance(prevScene, BooksScene):
+        selectedFile = "books/test.txt"
+        if isinstance(prevScene, PrepareScene):
+            selectedFile = prevScene.GetSelectedFile()
+        
+        if selectedFile is None or selectedFile == "":
             return
         
-        selectedFile = prevScene.GetSelectedFile()
-        if selectedFile is None:
-            return
-        
-        if self.__book.load(selectedFile.GetName(), dictionary):
+        if self.__book.load(selectedFile, dictionary):
             self.Next()
 
     def _onLeave(self) -> None:
@@ -74,6 +76,9 @@ class RememberScene(utils.Scene):
         pass
     
     def _onMouseButtonUp(self, event: pygame.event.Event) -> None:
+        pass
+    
+    def _onUIEvent(self, event: pygame.Event) -> None:
         pass
     
     def _onReturn(self) -> None:
@@ -150,13 +155,13 @@ class RememberScene(utils.Scene):
                 for i, translation in enumerate(translations):
                     self.__group.add(utils.Sprite(self.__defaultFont.render(translation, True, [255,255,255]), 10, 70 + i * 30))
                     
-            self.__currentSequence = CharSequence(self.__currentWord.word, self.width() // 2, self.height() - 100, self.__CharacterFont)
+            self.__currentSequence = CharSequence(self.__currentWord.word, self.width // 2, self.height - 100, self.__CharacterFont)
             self.__group.add(self.__currentSequence)
 
             progress = f"progress: {self.__book.index()}/{self.__book.length()} | round: {self.__book.round()}"
             progress_size = self.__informationFont.size(progress)
             
-            progress_x = self.width() - self._span * 2 - progress_size[0]
+            progress_x = self.width - self._span * 2 - progress_size[0]
             progress_y = self._span * 2
             self.__group.add(utils.Sprite(self.__informationFont.render(progress, True, [255,255,255]), progress_x, progress_y))
             
@@ -172,21 +177,31 @@ class RememberScene(utils.Scene):
         info = f"right {self.__currentWord.totalWrong} | wrong {self.__currentWord.totalRight} | bingo: {self.__currentWord.bingo} | proficiency: {self.__currentWord.proficiency} | delta: {self.__currentWord.delta}"
         info_size = self.__informationFont.size(info)
         
-        info_x = self.width() - info_size[0] - self._span * 2
+        info_x = self.width - info_size[0] - self._span * 2
         if info_x < 0 :
             info_x = 0
         
-        background = pygame.Surface((self.width() - self._span * 2 - self._border * 2, info_size[1] + self._span * 2 - self._border * 2))
+        background = pygame.Surface((self.width - self._span * 2 - self._border * 2, info_size[1] + self._span * 2 - self._border * 2))
         background.fill((0,0,200))
         
-        self.__statusbar.add(utils.Sprite(background, self._span + self._border, self.height() - info_size[1] - self._span * 3))
-        self.__statusbar.add(utils.Sprite(self.__informationFont.render(info, True, [255,255,255]), info_x , self.height() - info_size[1] - self._span * 2))
+        self.__statusbar.add(utils.Sprite(background, self._span + self._border, self.height - info_size[1] - self._span * 3))
+        self.__statusbar.add(utils.Sprite(self.__informationFont.render(info, True, [255,255,255]), info_x , self.height - info_size[1] - self._span * 2))
 
     def Update(self, *args, **kwargs) -> bool:
         if self.__currentSequence is None:
             self.__group.empty()
             congratulation = self.__defaultFont.render("Congratulations! You have finished the exercise!", True, [255,255,255])
-            self.__group.add(utils.Sprite(congratulation, (self.width() - congratulation.width) // 2, (self.height() - congratulation.height) // 2))
+            self.__group.add(utils.Sprite(congratulation, (self.width - congratulation.width) // 2, (self.height - congratulation.height) // 2))
+            
+            if self.__firework_lasttime + 1000 < pygame.time.get_ticks():
+                self.__firework_lasttime = pygame.time.get_ticks()
+                self.__fireworks.add(
+                    random.randint(self.width // 4, self.width // 4 * 3), 
+                    random.randint(self.height // 4, self.height // 2)
+                )
+                
+            self.__fireworks.update()
+            
         
         if self.__word_status == 1:
             self.__word_status = 2
@@ -194,22 +209,23 @@ class RememberScene(utils.Scene):
             
         if self.__word_status == 2 and pygame.time.get_ticks() - self.__word_waiting_from > 1000:
             self.Next()
-                    
+
         return True
     
     def Draw(self, surface: pygame.Surface) -> None:
         surface.fill((0, 0, 0))
-        pygame.draw.rect(surface, (255, 255, 255), (self._span, self._span, self.width() - self._span * 2, self.height() - self._span * 2), 1, 5)
+        pygame.draw.rect(surface, (255, 255, 255), (self._span, self._span, self.width - self._span * 2, self.height - self._span * 2), 1, 5)
         if self.__currentSequence is not None:
             pygame.draw.line(surface,
                 (255, 255, 255),
-                (0 + self._span, self.height() - self._span * 2 - self.__currentSequence.height()), 
-                (self.width() - self._span - self._border, self.height() - self._span * 2 - self.__currentSequence.height()), 
+                (0 + self._span, self.height - self._span * 2 - self.__currentSequence.height()), 
+                (self.width - self._span - self._border, self.height - self._span * 2 - self.__currentSequence.height()), 
                 1
             )
         
         self.__group.draw(surface)
         self.__statusbar.draw(surface)
+        self.__fireworks.draw(surface)
 
 if __name__ == "__main__":
     pygame.init()

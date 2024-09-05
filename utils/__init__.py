@@ -5,6 +5,7 @@ from .fonts import FontManager
 from .sprite import Sprite, SpriteFrameAnim
 from .spider import youdao
 from .resources import ResourceManager
+from .fireworks import Fireworks
 
 def CenterPos(image: pygame.Surface, targetSize: tuple[int,int]) -> tuple[int,int]:
     image_rc = image.get_rect()
@@ -25,4 +26,5 @@ __all__ = [
     "SpriteFrameAnim",
     "CenterPos",
     "youdao",
+    "Fireworks",
 ]

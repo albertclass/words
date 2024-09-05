@@ -111,8 +111,8 @@ class BooksScene(utils.Scene):
         self.__area: pygame.Rect = pygame.Rect(
             self._span * 2 + self._border, 
             self._span * 2 + self._border, 
-            (self.width() - self._span * 4 - self._border) // 2, 
-            (self.height() - self._span * 4 - self._border),
+            (self.width - self._span * 4 - self._border) // 2, 
+            (self.height - self._span * 4 - self._border),
         )
         
         self.__rightArea: pygame.Rect = pygame.Rect(
@@ -136,18 +136,20 @@ class BooksScene(utils.Scene):
     
     def __nextItem(self) -> None:
         self.__index += 1
-        self.__updateSubDirectory()
 
-        # 如果当前页中的索引小于每页显示的项目数，或者当前页中的索引小于当前目录中的文件数减去偏移量
-        if not self.__index >= min(self.__itemPrePage, len(self.__currentDirectory.Files) - self.__offset):
-            return
-        
-        self.__index = min(self.__itemPrePage, len(self.__currentDirectory.Files) - self.__offset) - 1
-        if not self.__offset + self.__itemPrePage < len(self.__currentDirectory.Files):
-            return
-        
-        self.__offset += 1
-        self.__updateDirectory(self.__currentDirectory)
+        try:
+            # 如果当前页中的索引小于每页显示的项目数，或者当前页中的索引小于当前目录中的文件数减去偏移量
+            if not self.__index >= min(self.__itemPrePage, len(self.__currentDirectory.Files) - self.__offset):
+                return
+            
+            self.__index = min(self.__itemPrePage, len(self.__currentDirectory.Files) - self.__offset) - 1
+            if not self.__offset + self.__itemPrePage < len(self.__currentDirectory.Files):
+                return
+            
+            self.__offset += 1
+            self.__updateDirectory(self.__currentDirectory)
+        finally:
+            self.__updateSubDirectory()
 
     def __prevItem(self) -> None:
         self.__index -= 1
@@ -216,7 +218,7 @@ class BooksScene(utils.Scene):
             else:
                 # select file
                 self.__selectFile = file
-                utils.SceneManager.Switch("Remember")
+                utils.SceneManager.Switch("Prepare")
         self.__key_down_time = pygame.time.get_ticks()
         self.__key_down_event = event
     
@@ -233,8 +235,11 @@ class BooksScene(utils.Scene):
     def _onMouseButtonUp(self, event: pygame.event.Event) -> None:
         pass
     
-    def GetSelectedFile(self) -> File | None:
-        return self.__selectFile
+    def _onUIEvent(self, event: pygame.Event) -> None:
+        pass
+    
+    def GetSelectedFile(self) -> str:
+        return self.__selectFile.GetName()
     
     def Update(self, *args, **kwargs) -> bool:
         if self.__key_down_event is not None and pygame.time.get_ticks() - self.__key_down_time > self.__key_dwon_interval:
@@ -245,8 +250,8 @@ class BooksScene(utils.Scene):
     
     def Draw(self, surface: pygame.Surface) -> None:
         surface.fill((0,0,0))
-        pygame.draw.rect(surface, (255, 255, 255), (self._span, self._span, self.width() - self._span * 2, self.height() - self._span * 2), 1, 5)
-        pygame.draw.line(surface, (255, 255, 255), (self.width() // 2, self._span * 2 + 2), (self.width() // 2, self.height() - self._span * 2 - 2), 1)
+        pygame.draw.rect(surface, (255, 255, 255), (self._span, self._span, self.width - self._span * 2, self.height - self._span * 2), 1, 5)
+        pygame.draw.line(surface, (255, 255, 255), (self.width // 2, self._span * 2 + 2), (self.width // 2, self.height - self._span * 2 - 2), 1)
         
         # draw current selected item
         pygame.draw.rect(surface, (255, 255, 0), (
