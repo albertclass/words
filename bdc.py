@@ -36,17 +36,6 @@ fonts = [
     pygame.font.SysFont("Microsoft YaHei", 32),
 ]
 
-# Calc the letter weight and height
-# letters=""
-# for i in range(32, 126):
-#     letters += chr(i)
-
-# letters_image = fonts[1].render(letters, True, [255,255,255])
-# letters_image_rc = letters_image.get_rect()
-# letter_w = letters_image_rc.width // 94
-# letter_h = letters_image_rc.height
-
-
 running = True
 
 # 关闭输入法

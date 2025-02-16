@@ -1,5 +1,6 @@
 from re import S
 import pygame
+from .tts import SimpleTTS
 from .scene import Scene, SceneManager
 from .fonts import FontManager
 from .sprite import Sprite, SpriteFrameAnim
@@ -15,8 +16,8 @@ FontManager = FontManager()
 SceneManager = SceneManager()
 ResourceManager = ResourceManager()
 
-SpriteFrameAnimMode = sprite.SpriteFrameAnim.Mode
-SpriteFrameAnimPlayMode = sprite.SpriteFrameAnim.PlayMode
+SpriteFrameAnimMode = SpriteFrameAnim.Mode
+SpriteFrameAnimPlayMode = SpriteFrameAnim.PlayMode
 __all__ = [
     "Scene",
     "SceneManager",
@@ -27,4 +28,5 @@ __all__ = [
     "CenterPos",
     "youdao",
     "Fireworks",
+    "SimpleTTS",
 ]

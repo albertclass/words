@@ -129,7 +129,7 @@ class Book:
                 w = Word(*row)
                 w.bingo = 0
                 w.delta = 50
-                w.proficiency = 0 if w.totalCount == 0 else int(100 * (w.totalRight / w.totalCount))
+                w.proficiency = 50 if w.totalCount == 0 else int(100 * (w.totalRight / w.totalCount))
                 if w.proficiency > 95:
                     print(f"Skip word: {w.word}, Proficiency: {w.proficiency}")
                     continue

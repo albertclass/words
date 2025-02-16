@@ -6,9 +6,8 @@ import zipfile
 import logging
 import threading
 import queue
-
 import pygame
-
+from .tts import SimpleTTS
 
 class ResourceManager:
     _instance = None
@@ -23,6 +22,7 @@ class ResourceManager:
         if hasattr(self, "__initilized"):
             return
         
+        self._tts: SimpleTTS = SimpleTTS()
         self._loading: list[threading.Thread] = []
         self._search_paths: list[tuple[str, zipfile.ZipFile]] = []
         self._search_queue: queue.Queue = queue.Queue(64)
@@ -33,6 +33,8 @@ class ResourceManager:
             try:
                 zfile = zipfile.ZipFile(path)
                 
+                # put absolute path and zip file object into search queue. 
+                # when call _get method, it will visit the search queue to find the zip file object.
                 self._search_queue.put((os.path.abspath(path)[:-4], zfile))
             except Exception as e:
                 return f"Error: {type(e)} - {e}"
@@ -53,6 +55,8 @@ class ResourceManager:
     
     def _update(self):
         # get result from search queue
+        # after the loading thread is done, it will put the zip file object into search queue
+        # so we can get the zip file object from search queue
         while not self._search_queue.empty():
             root, zfile = self._search_queue.get()
             self._search_paths.append((root, zfile))
@@ -118,6 +122,22 @@ class ResourceManager:
             logging.error(f"Error: {type(e)} - {e}")
             return None
 
+    def loadFile(self, path: str | os.PathLike[str]) -> io.BytesIO | None:
+        try:
+            if os.path.exists(path):
+                with open(path, "rb") as file:
+                    return io.BytesIO(file.read())
+            
+            zfile, subpath = self._get(path)
+            if zfile is None:
+                return None
+            
+            with zfile.open(str(subpath)) as file:
+                return io.BytesIO(file.read())
+        except Exception as e:
+            logging.error(f"Error: {type(e)} - {e}")
+            return None
+        
 if __file__ == "__main__":
     resMgr = ResourceManager()
     resMgr.add("phonetic/en.zip")

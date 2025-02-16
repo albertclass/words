@@ -12,7 +12,7 @@ class WelcomeScene(utils.Scene):
         self._application : pygame.sprite.Group = pygame.sprite.Group()
     
         background = pygame.image.load("images/startup.png")
-        self._application.add(utils.Sprite(background, 0, 0, width = self.width, height = self.height, stretch = True))
+        self._application.add(utils.Sprite(pygame.transform.scale(background, size)))
         
         font = utils.FontManager.GetFont("font/msyh.ttc", 64)
         text = font.render("兔哥背单词", True, (255, 255, 255))
@@ -32,8 +32,6 @@ class WelcomeScene(utils.Scene):
         tipsFontSize = tipsFont.size("按任意键开始")
         
         frame = 25
-        testgroup = pygame.sprite.Group()
-
         self._tips = pygame.sprite.Group()
         self.__loadResourceText = pygame.Surface((tipsFontSize[0], tipsFontSize[1] * frame))
         self.__loadResourceText.set_colorkey((0, 0, 0))
@@ -52,31 +50,31 @@ class WelcomeScene(utils.Scene):
         
         pos = utils.CenterPos(self.__loadResourceText, size)
         self.__loadResourceTextAnim = utils.SpriteFrameAnim(self.__loadResourceText, 
-            pos[0], # position x
-            self.height - tipsFontSize[1], # position y
             frame, # row
             1, # col
             mode = utils.SpriteFrameAnimMode.COL, # frame mode
-            play = utils.SpriteFrameAnimPlayMode.REVERSE, # play mode
             interval = 0.04
         )
 
+        self.__loadResourceTextAnim.MoveTo(pos[0], self.height - tipsFontSize[1])
+        self.__loadResourceTextAnim.Play(utils.SpriteFrameAnimPlayMode.REVERSE)
+
         pos = utils.CenterPos(self.__tipsText, size)
         self.__tipsTextAnim = utils.SpriteFrameAnim(self.__tipsText, 
-            pos[0], # position x
-            self.height - tipsFontSize[1], # position y
             frame, # row
             1, # col
             mode = utils.SpriteFrameAnimMode.COL, # frame mode
-            play = utils.SpriteFrameAnimPlayMode.REVERSE, # play mode
             interval = 0.04
         )
+        self.__tipsTextAnim.MoveTo(pos[0], self.height - tipsFontSize[1])
+        self.__tipsTextAnim.Play(utils.SpriteFrameAnimPlayMode.REVERSE)
 
         self.__tips_added = False
         self._tips.add(self.__loadResourceTextAnim)
         
     def _onEnter(self, prevScene: utils.Scene | None) -> None:
-        utils.ResourceManager.add("phonetic/en.zip")
+        # utils.ResourceManager.add("phonetic/en.zip")
+        pass
     
     def _onLeave(self) -> None:
         print("Leave Welcome")

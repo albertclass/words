@@ -19,15 +19,11 @@ class Word:
 
     def play(self):
         if self.sound is None:
-            filepath = os.path.join('phonetic', 'en', self.content["audio"])
-            self.sound = utils.ResourceManager.loadSound(filepath)
-            # if os.path.exists(filepath):
-            #     self.sound = pygame.mixer.Sound(filepath)
-            # elif os.path.exists(os.path.join('phonetic', 'en.zip')):
-            #     with zipfile.ZipFile(os.path.join('phonetic', 'en.zip')) as zfile:
-            #         with zfile.open(self.content["audio"] if sys.platform == "linux" else self.content["audio"].replace("\\", "/") ) as file:
-            #             buffer = io.BytesIO(file.read())
-            #             self.sound = pygame.mixer.Sound(buffer)
+            # filepath = os.path.join('phonetic', 'en', self.content["audio"])
+            # self.sound = utils.ResourceManager.loadSound(filepath)
+            ret, sound = utils.SimpleTTS().load(self.word)
+            if ret:
+                self.sound = pygame.mixer.Sound(sound)
                 
         if self.sound is not None:
             self.sound.play(loops=0)
