@@ -190,12 +190,21 @@ class BooksScene(utils.Scene):
             for index, file in enumerate(selected.Files[self.__page * self.__itemPrePage : (self.__page + 1) * self.__itemPrePage]):
                 file.MoveTo(self.__rightArea.x, self.__rightArea.y + index * file.Size()[1])
                 self.__subgroup.add(file)
+        elif isinstance(selected, ParentDirectory):
+            pass
+        elif isinstance(selected, File):
+            with open(selected.GetName(), "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                for index, line in enumerate(lines[self.__page * self.__itemPrePage : (self.__page + 1) * self.__itemPrePage]):
+                    text = utils.FontManager.GetFont("SimHei", 32).render(line, True, (255, 255, 255))
+                    self.__subgroup.add(utils.Sprite(text, self.__rightArea.x, self.__rightArea.y + index * selected.Size()[1]))
     
     def __leaveDirectory(self) -> None:
         self.__group.empty()
     
     def _onEnter(self, prevScene: utils.Scene | None) -> None:
         self.__updateDirectory(self.__root)
+        self.__updateSubDirectory()
     
     def _onLeave(self) -> None:
         pass
@@ -213,8 +222,10 @@ class BooksScene(utils.Scene):
             file = self.__currentDirectory.Files[self.__index + self.__offset]
             if isinstance(file, Directory):
                 self.__updateDirectory(file)
+                self.__updateSubDirectory()
             elif isinstance(file, ParentDirectory):
                 self.__updateDirectory(file.directory())
+                self.__updateSubDirectory()
             else:
                 # select file
                 self.__selectFile = file
