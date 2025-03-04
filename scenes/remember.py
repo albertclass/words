@@ -9,7 +9,6 @@ if __name__ == "__main__":
 
 import pygame
 import utils
-from scenes import PrepareScene
 from core import Book, Word, CharSequence
 import stardict
 
@@ -18,53 +17,75 @@ class RememberScene(utils.Scene):
     def __init__(self, size: tuple[int, int]):
         super().__init__("Remember", size, 5, 1)
         
-        self.__book: Book = Book("xuchenhao")
-        self.__iter: Iterable[Word] | None = None
-        self.__defaultFont: pygame.font.Font = utils.FontManager.GetFont("font/msyh.ttc", 24)
-        self.__CharacterFont: pygame.font.Font = utils.FontManager.GetFont("Consolas", 24)
-        self.__informationFont: pygame.font.Font = utils.FontManager.GetFont("Consolas", 18)
-        self.__phoneticFont: pygame.font.Font = utils.FontManager.GetFont("calibri", 24)
-        self.__group: pygame.sprite.Group = pygame.sprite.Group()
-        self.__statusbar: pygame.sprite.Group = pygame.sprite.Group()
-        self.__wrong: int = 0
-        self.__crack: bool = False
-        self.__word_waiting_from: int = 0
-        self.__word_status: int = 0 # 0: enter， 1：right， 2：waiting for next
-        self.__currentSequence = None
-        self.__firework_lasttime = pygame.time.get_ticks()
-        self.__fireworks = utils.Fireworks()
-        
-    def _onEnter(self, prevScene: utils.Scene | None) -> None:
-        selectedFile = "books/test.txt"
-        if isinstance(prevScene, PrepareScene):
-            selectedFile = prevScene.GetSelectedFile()
-        
-        if selectedFile is None or selectedFile == "":
-            return
-        
-        if self.__book.load(selectedFile, dictionary):
+        self._book: Book = Book()
+        self._iter: Iterable[Word] | None = None
+        self._defaultFont: pygame.font.Font = utils.FontManager.GetFont("font/msyh.ttc", 24)
+        self._charactorFont: pygame.font.Font = utils.FontManager.GetFont("Consolas", 48)
+        self._informationFont: pygame.font.Font = utils.FontManager.GetFont("Consolas", 18)
+        self._phoneticFont: pygame.font.Font = utils.FontManager.GetFont("calibri", 24)
+        self._group: pygame.sprite.Group = pygame.sprite.Group()
+        self._statusbar: pygame.sprite.Group = pygame.sprite.Group()
+        self._wrong: int = 0
+        self._crack: bool = False
+        self._word_waiting_from: int = 0
+        self._word_status: int = 0 # 0: enter， 1：right， 2：waiting for next
+        self._currentSequence = None
+        self._firework_lasttime = pygame.time.get_ticks()
+        self._fireworks = utils.Fireworks()
+        self._font_color = (0,0,0)
+        self._border_color = (0,0,0)
+        self._statusbar_color = (50, 50, 178)
+
+        self.background_image = pygame.image.load("images/background-3.png")
+
+        charactor = pygame.image.load("images/CH00171.png")
+        actions: dict[str, utils.SpriteFrameAnim] = {
+            "left":      utils.SpriteFrameAnim(charactor.subsurface((0, 1024 // 8 * 0, 1024, 1024 // 8)), 1, 8, utils.SpriteFrameAnim.Mode.ROW, interval=0.125),
+            "upleft":    utils.SpriteFrameAnim(charactor.subsurface((0, 1024 // 8 * 1, 1024, 1024 // 8)), 1, 8, utils.SpriteFrameAnim.Mode.ROW, interval=0.125),
+            "up":        utils.SpriteFrameAnim(charactor.subsurface((0, 1024 // 8 * 2, 1024, 1024 // 8)), 1, 8, utils.SpriteFrameAnim.Mode.ROW, interval=0.125),
+            "upright":   utils.SpriteFrameAnim(charactor.subsurface((0, 1024 // 8 * 3, 1024, 1024 // 8)), 1, 8, utils.SpriteFrameAnim.Mode.ROW, interval=0.125),
+            "right":     utils.SpriteFrameAnim(charactor.subsurface((0, 1024 // 8 * 4, 1024, 1024 // 8)), 1, 8, utils.SpriteFrameAnim.Mode.ROW, interval=0.125),
+            "downright": utils.SpriteFrameAnim(charactor.subsurface((0, 1024 // 8 * 5, 1024, 1024 // 8)), 1, 8, utils.SpriteFrameAnim.Mode.ROW, interval=0.125),
+            "down":      utils.SpriteFrameAnim(charactor.subsurface((0, 1024 // 8 * 6, 1024, 1024 // 8)), 1, 8, utils.SpriteFrameAnim.Mode.ROW, interval=0.125),
+            "downleft":  utils.SpriteFrameAnim(charactor.subsurface((0, 1024 // 8 * 7, 1024, 1024 // 8)), 1, 8, utils.SpriteFrameAnim.Mode.ROW, interval=0.125),
+        }
+
+        self._charactor: utils.Charactor = utils.Charactor("Albert", 2, actions = actions)
+        self._charactor.setAction("down")
+        self._charactor.hotspot = (int(self._charactor.width // 2), int(self._charactor.height // 2))
+        self._charactor.speed = 2
+        self._charactor.move(0, 0)
+
+    def _onEnter(self, prevScene: utils.Scene | None, *params, **kwargs) -> None:
+        book = utils.SceneManager.GetSceneProperty("Books", "book")
+        if isinstance(book, Book):
+            self._book = book
             self.Next()
 
-    def _onLeave(self) -> None:
+        self._charactor.move(0, 300)
+
+    def _onLeave(self, nextScene: utils.Scene | None) -> None:
         pass
     
     def _onKeyDown(self, event: pygame.event.Event) -> None:
-        if self.__currentSequence is None:
+        if self._currentSequence is None:
             utils.SceneManager.Switch("Books")
             return
 
         # 只有在输入状态下才能输入
-        if self.__word_status != 0:
+        if self._word_status != 0:
             return
         
+        if event.key == pygame.K_ESCAPE: 
+            utils.SceneManager.Switch("Books")
         if event.key == pygame.K_BACKSPACE: 
-            self.__currentSequence.backspace()
+            self._currentSequence.backspace()
         elif event.key == pygame.K_DELETE:
-            self.__currentSequence.delete()
+            self._currentSequence.delete()
         elif event.key == pygame.K_RETURN:
             self._onReturn()
         elif len(event.unicode) > 0:
-            self.__currentSequence.press(event.unicode)
+            self._currentSequence.press(event.unicode)
     
     def _onKeyUp(self, event: pygame.event.Event) -> None:
         pass
@@ -73,7 +94,7 @@ class RememberScene(utils.Scene):
         pass
     
     def _onMouseButtonDown(self, event: pygame.event.Event) -> None:
-        pass
+        self._charactor.walk(event.pos[0], event.pos[1])
     
     def _onMouseButtonUp(self, event: pygame.event.Event) -> None:
         pass
@@ -82,70 +103,70 @@ class RememberScene(utils.Scene):
         pass
     
     def _onReturn(self) -> None:
-        if self.__currentSequence is None:
+        if self._currentSequence is None:
             return
         
-        if self.__currentSequence.is_empty():
-            self.__crack = True
+        if self._currentSequence.is_empty():
+            self._crack = True
             # show correct spelling, if wrong more than 3 times
-            answer = self.__defaultFont.render(str(self.__currentSequence), True, [200,0,100])
+            answer = self._charactorFont.render(str(self._currentSequence), True, (200,0,100))
             answer_rect = answer.get_rect()
-            pos_x = (800 - answer_rect.width) // 2
-            pos_y = (600 - answer_rect.height) // 2
-            self.__group.add(utils.Sprite(answer, pos_x, pos_y))
-            self.__currentSequence.reset()
+            pos_x = (self.width - answer_rect.width) // 2
+            pos_y = (self.height - answer_rect.height) // 2
+            self._group.add(utils.Sprite(answer, pos_x, pos_y))
+            self._currentSequence.reset()
             self.__currentWord.play()
-        elif self.__currentSequence.check() == False:
+        elif not self._currentSequence.check():
             # 回答错误，错误次数 +1
-            self.__wrong += 1
-            self.__book.wrong(self.__currentWord)
-            self.__currentSequence.reset()
+            self._wrong += 1
+            self._book.wrong(self.__currentWord)
+            self._currentSequence.reset()
             
-            if self.__wrong == 1:
+            if self._wrong == 1:
                 # play the pronunciation, if wrong more than 1 times
                 self.__currentWord.play()
-            if self.__wrong == 2:
+            if self._wrong == 2:
                 # show the phonetic symbol, if wrong more than 2 times
-                pron = utils.Sprite(self.__phoneticFont.render(self.__currentWord.content["phonetic"], True, [255,255,255]), 10, 40)
-                self.__group.add(pron)
-            if self.__wrong == 3:
+                pron = utils.Sprite(self._phoneticFont.render(self.__currentWord.content["phonetic"], True, self._font_color), 150, 190)
+                self._group.add(pron)
+            if self._wrong == 3:
                 # show correct spelling, if wrong more than 3 times
-                answer = self.__defaultFont.render(self.__currentWord.word, True, [200,0,100])
+                answer = self._charactorFont.render(self.__currentWord.word, True, (200,0,100))
                 answer_rect = answer.get_rect()
-                pos_x = (800 - answer_rect.width) // 2
-                pos_y = (600 - answer_rect.height) // 2
-                self.__group.add(utils.Sprite(answer, pos_x, pos_y))
-                self.__crack = True
-        elif not self.__crack:
+                pos_x = (self.width - answer_rect.width) // 2
+                pos_y = (self.height - answer_rect.height) // 2
+                self._group.add(utils.Sprite(answer, pos_x, pos_y))
+                self._crack = True
+        elif not self._crack:
             # 显示音标
-            pron = utils.Sprite(self.__phoneticFont.render(self.__currentWord.content["phonetic"], True, [255,255,255]), 10, 40)
-            self.__group.add(pron)
+            pron = utils.Sprite(self._phoneticFont.render(self.__currentWord.content["phonetic"], True, self._font_color), 150, 190)
+            self._group.add(pron)
             # 播放单词发音
             self.__currentWord.play()
             # 回答正确，正确次数 +1
-            self.__book.right(self.__currentWord)
-            self.__word_status = 1
+            self._book.right(self.__currentWord)
+            self._word_status = 1
         else:
-            self.__crack = False
-            self.__wrong = 0
-            self.__word_status = 1
+            self._crack = False
+            self._wrong = 0
+            self._word_status = 1
             
         self.UpdateStatus()
 
     
     def Next(self) -> bool:
-        if self.__book is None:
+        if self._book is None:
             return False
         
-        if self.__iter is None:
-            self.__iter = iter(self.__book)
+        if self._iter is None:
+            self._iter = iter(self._book)
         
         try:
             # get next word
-            self.__currentWord = next(self.__book)
-            self.__wrong = 0
-            self.__word_status = 0
-            self.__group.empty()
+            self.__currentWord = next(self._book)
+            self._wrong = 0
+            self._word_status = 0
+            self._group.empty()
             
             if "translation" in self.__currentWord.content \
                 and self.__currentWord.content["translation"] is not None \
@@ -153,79 +174,85 @@ class RememberScene(utils.Scene):
                     
                 translations = self.__currentWord.content["translation"].split("\n")
                 for i, translation in enumerate(translations):
-                    self.__group.add(utils.Sprite(self.__defaultFont.render(translation, True, [255,255,255]), 10, 70 + i * 30))
+                    self._group.add(utils.Sprite(self._defaultFont.render(translation, True, self._font_color), 150, 230 + i * 40))
                     
-            self.__currentSequence = CharSequence(self.__currentWord.word, self.width // 2, self.height - 100, self.__CharacterFont)
-            self.__group.add(self.__currentSequence)
+            self._currentSequence = CharSequence(self.__currentWord.word, self.width // 2, self.height - 100, self._charactorFont)
+            self._group.add(self._currentSequence)
 
-            progress = f"progress: {self.__book.index()}/{self.__book.length()} | round: {self.__book.round()}"
-            progress_size = self.__informationFont.size(progress)
+            progress = f"progress: {self._book.index()}/{self._book.length()} | round: {self._book.round()}"
+            progress_size = self._informationFont.size(progress)
             
             progress_x = self.width - self._span * 2 - progress_size[0]
             progress_y = self._span * 2
-            self.__group.add(utils.Sprite(self.__informationFont.render(progress, True, [255,255,255]), progress_x, progress_y))
+            self._group.add(utils.Sprite(self._informationFont.render(progress, True, self._font_color), progress_x, progress_y))
             
             self.UpdateStatus()
 
         except StopIteration:
-            self.__currentSequence = None
+            self._currentSequence = None
             return False
             
         return True
+    
     def UpdateStatus(self) -> None:
-        self.__statusbar.empty()
-        info = f"right {self.__currentWord.totalWrong} | wrong {self.__currentWord.totalRight} | bingo: {self.__currentWord.bingo} | proficiency: {self.__currentWord.proficiency} | delta: {self.__currentWord.delta}"
-        info_size = self.__informationFont.size(info)
+        self._statusbar.empty()
+        info = f"right {self.__currentWord.right} | wrong {self.__currentWord.wrong} | bingo: {self.__currentWord.bingo}"
+        info_size = self._informationFont.size(info)
         
         info_x = self.width - info_size[0] - self._span * 2
         if info_x < 0 :
             info_x = 0
         
-        background = pygame.Surface((self.width - self._span * 2 - self._border * 2, info_size[1] + self._span * 2 - self._border * 2))
-        background.fill((0,0,200))
+        # background = pygame.Surface((self.width - self._span * 2 - self._border * 2, info_size[1] + self._span * 2 - self._border * 2))
+        # background.fill(self._statusbar_color)
         
-        self.__statusbar.add(utils.Sprite(background, self._span + self._border, self.height - info_size[1] - self._span * 3))
-        self.__statusbar.add(utils.Sprite(self.__informationFont.render(info, True, [255,255,255]), info_x , self.height - info_size[1] - self._span * 2))
+        # self._statusbar.add(utils.Sprite(background, self._span + self._border, self.height - info_size[1] - self._span * 3))
+        self._statusbar.add(utils.Sprite(self._informationFont.render(info, True, self._font_color), info_x , self.height - info_size[1] - self._span * 2))
 
     def Update(self, *args, **kwargs) -> bool:
-        if self.__currentSequence is None:
-            self.__group.empty()
-            congratulation = self.__defaultFont.render("Congratulations! You have finished the exercise!", True, [255,255,255])
-            self.__group.add(utils.Sprite(congratulation, (self.width - congratulation.width) // 2, (self.height - congratulation.height) // 2))
-            
-            if self.__firework_lasttime + 1000 < pygame.time.get_ticks():
-                self.__firework_lasttime = pygame.time.get_ticks()
-                self.__fireworks.add(
+        if self._currentSequence is None:
+            # 全部背完了， 开始放烟花
+            if self._firework_lasttime + 1000 < pygame.time.get_ticks():
+                self._firework_lasttime = pygame.time.get_ticks()
+                self._fireworks.add(
                     random.randint(self.width // 4, self.width // 4 * 3), 
                     random.randint(self.height // 4, self.height // 2)
                 )
                 
-            self.__fireworks.update()
+            self._fireworks.update()
             
         
-        if self.__word_status == 1:
-            self.__word_status = 2
-            self.__word_waiting_from = pygame.time.get_ticks()
+        if self._word_status == 1:
+            self._word_status = 2
+            self._word_waiting_from = pygame.time.get_ticks()
             
-        if self.__word_status == 2 and pygame.time.get_ticks() - self.__word_waiting_from > 1000:
+        if self._word_status == 2 and pygame.time.get_ticks() - self._word_waiting_from > 1000:
             self.Next()
+            if self._currentSequence is None:
+                # 背完了，更新状态
+                self._group.empty()
+                congratulation = self._defaultFont.render("Congratulations! You have finished the exercise!", True, self._font_color)
+                self._group.add(utils.Sprite(congratulation, (self.width - congratulation.width) // 2, (self.height - congratulation.height) // 2))
 
+        self._charactor.update()
+        self._group.update()
         return True
     
     def Draw(self, surface: pygame.Surface) -> None:
-        surface.fill((0, 0, 0))
-        pygame.draw.rect(surface, (255, 255, 255), (self._span, self._span, self.width - self._span * 2, self.height - self._span * 2), 1, 5)
-        if self.__currentSequence is not None:
+        pygame.draw.rect(surface, self._border_color, (self._span, self._span, self.width - self._span * 2, self.height - self._span * 2), 1, 5)
+        if self._currentSequence is not None:
             pygame.draw.line(surface,
-                (255, 255, 255),
-                (0 + self._span, self.height - self._span * 2 - self.__currentSequence.height()), 
-                (self.width - self._span - self._border, self.height - self._span * 2 - self.__currentSequence.height()), 
+                self._border_color,
+                (0 + self._span, self.height - self._span * 2 - self._currentSequence.height()), 
+                (self.width - self._span - self._border, self.height - self._span * 2 - self._currentSequence.height()), 
                 1
             )
         
-        self.__group.draw(surface)
-        self.__statusbar.draw(surface)
-        self.__fireworks.draw(surface)
+        self._group.draw(surface)
+        self._charactor.draw(surface)
+        self._statusbar.draw(surface)
+        self._fireworks.draw(surface)
+
 
 if __name__ == "__main__":
     pygame.init()

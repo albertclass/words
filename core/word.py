@@ -1,30 +1,20 @@
 import os
 import pygame
 import utils
-from dataclasses import dataclass, field
 
-@dataclass
 class Word:
-    word: str = field(init=True)
-    totalCount: int = 0
-    totalWrong: int = 0
-    totalRight: int = 0
-    bingo: int = 0
-    proficiency: int = 0
-    content: dict[str,str] = field(default_factory=dict[str,str])
-    sound: pygame.mixer.Sound | None = None
-    delta: int = 100
-    wrong: int = 0
-    right: int = 0
-
+    def __init__(self, word: str, content: dict[str, str] | None):
+        self.word: str = word
+        self.wrong: int = 0
+        self.right: int = 0
+        self.bingo: int = 0
+        self.content: dict[str, str] = content or {}
+        self.sound: pygame.mixer.Sound | None = None
+        ret, sound = utils.SimpleTTS().load(self.word)
+        if ret:
+            self.sound = pygame.mixer.Sound(sound)
+        
     def play(self):
-        if self.sound is None:
-            # filepath = os.path.join('phonetic', 'en', self.content["audio"])
-            # self.sound = utils.ResourceManager.loadSound(filepath)
-            ret, sound = utils.SimpleTTS().load(self.word)
-            if ret:
-                self.sound = pygame.mixer.Sound(sound)
-                
         if self.sound is not None:
             self.sound.play(loops=0)
 
@@ -65,12 +55,12 @@ class Letter(utils.Sprite):
     单词拼写字母。
     '''
     def __init__(self, char: str, x = 0, y = 0, font: pygame.font.Font | str = "Consolas"):
-        if type(font) == str:
+        if type(font) is str:
             font = utils.FontManager.GetFont(font, 24)
-        elif type(font) == pygame.font.Font:
+        elif type(font) is pygame.font.Font:
             self.font = font
 
-        super().__init__(self.font.render(char, True, [255,255,255]), x, y)
+        super().__init__(self.font.render(char, True, [0,0,0]), x, y)
         self.char = char
         self.type = char
         self.last = 0
@@ -89,7 +79,7 @@ class Letter(utils.Sprite):
         val = ord(char)
         if val >= ord(' ') and val <= ord('~'):
             self.type = char
-            self.UpdateSurface(self.font.render(char, True, [255,255,255]), )
+            self.image = self.font.render(char, True, [0,0,0])
 
     def reset(self):
         self.set('_')
@@ -135,7 +125,7 @@ class CharSequence(pygame.sprite.Group):
     
     def press(self, char):
         if self.cursor < len(self.sequence) and ord(char) > ord(' ') and ord(char) < ord('~'):
-            self.sequence[self.cursor].press(char if type(char) == str else chr(char))
+            self.sequence[self.cursor].press(char if type(char) is str else chr(char))
             self.cursor += 1
 
     def delete(self):

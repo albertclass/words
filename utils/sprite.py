@@ -1,5 +1,4 @@
 from __future__ import annotations
-from tkinter import N
 import pygame
 from enum import Enum
 
@@ -48,6 +47,30 @@ class Sprite(pygame.sprite.Sprite):
         
         self.rect = pygame.Rect(x, y, width, height)
     
+    @property
+    def x(self)-> int:
+        if self.rect is not None:
+            return int(self.rect.x)
+        return 0
+    
+    @property
+    def y(self)-> int:
+        if self.rect is not None:
+            return int(self.rect.y)
+        return 0
+    
+    @property
+    def width(self)-> int:
+        if self.rect is not None:
+            return int(self.rect.width)
+        return 0
+    
+    @property
+    def height(self)-> int:
+        if self.rect is not None:
+            return int(self.rect.height)
+        return 0
+
     def Size(self) -> tuple[int,int]:
         return self._size
 
@@ -59,20 +82,6 @@ class Sprite(pygame.sprite.Sprite):
     def Offset(self, dx: int, dy: int):
         if self.rect is not None:
             self.rect.move_ip(dx, dy)
-        
-    def UpdateSurface(self, surface: pygame.Surface, w: int = 0, h: int = 0):
-        self.__surface = surface
-        if w > 0:
-            self._area.width = min(w, self._area.width)
-        else:
-            self._area.width = surface.get_width() - self._area.x
-            
-        if h > 0:
-            self._area.height = min(h, self._area.height)
-        else:
-            self._area.height = surface.get_height() - self._area.y
-            
-        self.image = surface.subsurface(self._area)
         
 class SpriteFrameAnim(pygame.sprite.Sprite):
     class Mode(Enum):
@@ -128,12 +137,33 @@ class SpriteFrameAnim(pygame.sprite.Sprite):
         self.index = 0
         self.direction = 1
     
+    @property
+    def x(self)-> float | int:
+        if self.rect is not None:
+            return self.rect.x
+        return 0
+    
+    @property
+    def y(self)-> float | int:
+        if self.rect is not None:
+            return self.rect.y
+        return 0
+    
+    @property
+    def width(self)-> int:
+        if self.rect is not None:
+            return int(self.rect.width)
+        return 0
+    
+    @property
+    def height(self)-> int:
+        if self.rect is not None:
+            return int(self.rect.height)
+        return 0
+    
     def SetInterval(self, interval: float):
         self.interval = interval
 
-    def SetMode(self, mode: SpriteFrameAnim.Mode):
-        self.mode = mode
-    
     def Play(self, mode: SpriteFrameAnim.PlayMode, direction: int = 1):
         self.direction = direction
         self.play = mode
@@ -166,17 +196,15 @@ class SpriteFrameAnim(pygame.sprite.Sprite):
             
         self.image = self.frames[self.index]
 
-    def MoveTo(self, x: int, y: int):
+    def MoveTo(self, x: float | int, y: float | int):
         if self.rect is not None:
-            self.rect.x = x
-            self.rect.y = y
+            self.rect.x, self.rect.y = x, y
         
-    def Offset(self, dx: int, dy: int):
+    def Offset(self, dx: float | int, dy: float | int):
         if self.rect is not None:
             self.rect.move_ip(dx, dy)
-
+    
     def update(self, *args, **kwargs):
-        dt = 1000 if pygame.time.get_ticks() - self.tick > 1000 else pygame.time.get_ticks() - self.tick
-        if dt > self.interval * 1000:
-            self.tick += self.interval * 1000
+        if pygame.time.get_ticks() - self.tick > self.interval * 1000:
+            self.tick = pygame.time.get_ticks()
             self.NextFrame()

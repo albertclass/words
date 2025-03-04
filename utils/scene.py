@@ -1,5 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from typing import Any
 import pygame
 import pygame_gui
 
@@ -33,12 +34,42 @@ events = [
 class Scene(ABC):
     def __init__(self, title: str, size: tuple[int, int], span: int = 2, border: int = 1, *args, **kwargs):
         self._title = title
+        self._background_color: tuple[int,int,int]
+        self._background_image: pygame.Surface | None
+
+        if hasattr(self, "background_color"):
+            self._background_color = kwargs["background_color"]
+        else:
+            self._background_color = (255, 255, 255)
+
+        if hasattr(self, "background_image"):
+            self._background_image = kwargs["background_image"]
+        else:
+            self._background_image = None
+        
+        self._properties: dict[str, Any] = {}
         self._size = size
         self._span = span
         self._border = border
         self._show_ui = True
-        self._uimanager = pygame_gui.UIManager(size, **kwargs)
+        self._uimanager : pygame_gui.UIManager = pygame_gui.UIManager(size, **kwargs)
     
+    @property
+    def background_image(self) -> pygame.Surface | None:
+        return self._background_image
+    
+    @background_image.setter
+    def background_image(self, image: pygame.Surface) -> None:
+        self._background_image = pygame.transform.scale(image, self._size)
+
+    @property
+    def background_color(self) -> tuple[int,int,int]:
+        return self._background_color
+    
+    @background_color.setter
+    def background_color(self, color: tuple[int,int,int]) -> None:
+        self._background_color = color
+
     @property
     def width(self) -> int:
         return self._size[0]
@@ -67,11 +98,11 @@ class Scene(ABC):
         return (self._size[0] // 2, self._size[1] // 2)
     
     @abstractmethod
-    def _onEnter(self, prevScene: Scene | None) -> None:
+    def _onEnter(self, prevScene: Scene | None, *params, **kwargs) -> None:
         pass
     
     @abstractmethod
-    def _onLeave(self) -> None:
+    def _onLeave(self, nextScene: Scene | None) -> None:
         pass
     
     @abstractmethod
@@ -109,6 +140,16 @@ class Scene(ABC):
     def DrawUI(self, screen: pygame.Surface) -> None:
         self._uimanager.draw_ui(screen)
     
+    def GetProperty(self, name: str) -> Any:
+        return self._properties.get(name, None)
+    
+    def SetProperty(self, name: str, value: Any) -> None:
+        self._properties[name] = value
+
+    def DelProperty(self, name: str) -> None:
+        if name in self._properties:
+            del self._properties[name]
+
 class SceneManager:
     _instance = None
     
@@ -125,22 +166,25 @@ class SceneManager:
             
         if not hasattr(self, "currentScene"):
             self.currentScene : Scene | None = None
+
+        self._properties: dict[str, Any] = {}
+        self._tick = pygame.time.get_ticks()
     
     def AddScene(self, name: str, scene: Scene, switch: bool = False) -> None:
         self.scenes[name] = scene
         if switch:
             self.Switch(name)
     
-    def Switch(self, name: str) -> None:
+    def Switch(self, name: str, *params, **kwargs) -> None:
         if name not in self.scenes:
             return
         
         if self.currentScene is not None:
-            self.currentScene._onLeave()
+            self.currentScene._onLeave(self.scenes[name])
             
         previousScene = self.currentScene
         self.currentScene = self.scenes[name]
-        self.currentScene._onEnter(previousScene)
+        self.currentScene._onEnter(previousScene, *params, **kwargs)
     
     def Remove(self, name: str) -> None:
         if name in self.scenes:
@@ -170,7 +214,8 @@ class SceneManager:
                 self.currentScene._onMouseButtonDown(event)
             elif event.type == pygame.MOUSEBUTTONUP:
                 self.currentScene._onMouseButtonUp(event)
-                
+        kwargs["delta"] = pygame.time.get_ticks() - self._tick
+        self._tick = pygame.time.get_ticks()
         self.currentScene.Update(*args, **kwargs)
         self.currentScene._uimanager.update(self.__clock.tick(60) / 1000.0)
         return True
@@ -179,8 +224,40 @@ class SceneManager:
         if self.currentScene is None:
             return
         
+        if self.currentScene.background_image is not None:
+            screen.blit(self.currentScene.background_image, (0, 0), (0, 0, self.currentScene.width, self.currentScene.height))
+        else:
+            screen.fill(self.currentScene.background_color)
+
         self.currentScene.Draw(screen)
         if self.currentScene.show_ui:
             self.currentScene.DrawUI(screen)
         
         pygame.display.update()
+
+    def SetSceneProperty(self, scene_name: str, properties: dict[str, Any]):
+        if scene_name in self.scenes:
+            scene = self.scenes[scene_name]
+            for key, value in properties.items():
+                scene.SetProperty(key, value)
+
+    def GetSceneProperty(self, scene_name: str, key: str):
+        if scene_name in self.scenes:
+            scene = self.scenes[scene_name]
+            return scene.GetProperty(key)
+        return None
+
+    def DelSceneProperty(self, scene_name: str, key: str):
+        if scene_name in self.scenes:
+            scene = self.scenes[scene_name]
+            scene.DelProperty(key)
+
+    def SetProperty(self, key: str, value: Any) -> None:
+        self._properties[key] = value
+
+    def GetProperty(self, key: str) -> Any:
+        return self._properties.get(key, None)
+    
+    def DelProperty(self, key: str) -> None:
+        if key in self._properties:
+            del self._properties[key]

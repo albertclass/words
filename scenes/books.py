@@ -7,6 +7,7 @@ if __name__ == "__main__":
 
 import pygame
 import utils
+from core import Book
 
 class _Icons:
     def __init__(self, files: list[str] | None = None) -> None:
@@ -22,7 +23,7 @@ class _Icons:
                 
             self._width = w
             self._height = h
-            
+
     def GetIcon(self, index: int) -> pygame.Surface:
         rc = self.__icons.get_rect()
         return self.__icons.subsurface((0, index * self._height, rc.width, self._height))
@@ -105,64 +106,65 @@ class BooksScene(utils.Scene):
     def __init__(self, size: tuple[int, int], bookPath: str):
         super().__init__("Books", size, 5, 1)
 
-        self.__group: pygame.sprite.Group = pygame.sprite.Group()
-        self.__subgroup: pygame.sprite.Group = pygame.sprite.Group()
-        self.__icons = _Icons(["images/folder1.png", "images/folder2.png", "images/file.png"])
-        self.__area: pygame.Rect = pygame.Rect(
+        self._book = None
+        self._group: pygame.sprite.Group = pygame.sprite.Group()
+        self._subgroup: pygame.sprite.Group = pygame.sprite.Group()
+        self._icons = _Icons(["images/folder1.png", "images/folder2.png", "images/file.png"])
+        self._area: pygame.Rect = pygame.Rect(
             self._span * 2 + self._border, 
             self._span * 2 + self._border, 
             (self.width - self._span * 4 - self._border) // 2, 
             (self.height - self._span * 4 - self._border),
         )
         
-        self.__rightArea: pygame.Rect = pygame.Rect(
-            self.__area.x + self.__area.width + self._span * 2 + self._border, 
-            self.__area.y, 
-            self.__area.width, 
-            self.__area.height
+        self._rightArea: pygame.Rect = pygame.Rect(
+            self._area.x + self._area.width + self._span * 2 + self._border, 
+            self._area.y, 
+            self._area.width, 
+            self._area.height
         )
         
-        self.__root = Directory(bookPath, None, self.__icons, utils.FontManager.GetFont("SimHei", 32), self.__area.width)
-        self.__currentDirectory = self.__root
+        self._root = Directory(bookPath, None, self._icons, utils.FontManager.GetFont("SimHei", 32), self._area.width)
+        self._currentDirectory = self._root
 
-        self.__page = 0 # 当前目录下的文件页数
-        self.__index: int = 0 # 当前页中的索引
-        self.__offset: int = 0 # 当前页
-        self.__itemPrePage: int = self.__area.height // self.__root.Size()[1] # 每页显示的项目数
+        self._page = 0 # 当前目录下的文件页数
+        self._index: int = 0 # 当前页中的索引
+        self._offset: int = 0 # 当前页
+        self._itemPrePage: int = self._area.height // self._root.Size()[1] # 每页显示的项目数
         
-        self.__key_down_time: int = 0
-        self.__key_dwon_interval: int = 100
-        self.__key_down_event: pygame.event.Event | None = None
+        self._key_down_time: int = 0
+        self._key_dwon_interval: int = 100
+        self._key_down_event: pygame.event.Event | None = None
     
     def __nextItem(self) -> None:
-        self.__index += 1
+        self._index += 1
 
         try:
             # 如果当前页中的索引小于每页显示的项目数，或者当前页中的索引小于当前目录中的文件数减去偏移量
-            if not self.__index >= min(self.__itemPrePage, len(self.__currentDirectory.Files) - self.__offset):
+            if not self._index >= min(self._itemPrePage, len(self._currentDirectory.Files) - self._offset):
                 return
             
-            self.__index = min(self.__itemPrePage, len(self.__currentDirectory.Files) - self.__offset) - 1
-            if not self.__offset + self.__itemPrePage < len(self.__currentDirectory.Files):
+            self._index = min(self._itemPrePage, len(self._currentDirectory.Files) - self._offset) - 1
+            if not self._offset + self._itemPrePage < len(self._currentDirectory.Files):
                 return
             
-            self.__offset += 1
-            self.__updateDirectory(self.__currentDirectory)
+            self._offset += 1
+            self.__updateDirectory(self._currentDirectory)
         finally:
             self.__updateSubDirectory()
 
     def __prevItem(self) -> None:
-        self.__index -= 1
+        self._index -= 1
         self.__updateSubDirectory()
-        if not self.__index < 0:
+        if not self._index < 0:
             return
         
-        self.__index = 0
-        if not self.__offset > 0:
+        self._index = 0
+        if not self._offset > 0:
             return
         
-        self.__offset -= 1
-        self.__updateDirectory(self.__currentDirectory)
+        self._offset -= 1
+        self.__updateDirectory(self._currentDirectory)
 
     def __nextPage(self) -> None:
         pass
@@ -171,45 +173,63 @@ class BooksScene(utils.Scene):
         pass
     
     def __updateDirectory(self, directory: Directory) -> None:
-        if directory is not self.__currentDirectory:
-            self.__currentDirectory = directory
-            self.__index = 0
-            self.__offset = 0
+        if directory is not self._currentDirectory:
+            self._currentDirectory = directory
+            self._index = 0
+            self._offset = 0
         
-        self.__group.empty()
-        for index, file in enumerate(self.__currentDirectory.Files[self.__offset : self.__offset + self.__itemPrePage]):
-            file.MoveTo(self.__area.x, self.__area.y + index * file.Size()[1])
-            self.__group.add(file)
+        self._group.empty()
+        for index, file in enumerate(self._currentDirectory.Files[self._offset : self._offset + self._itemPrePage]):
+            file.MoveTo(self._area.x, self._area.y + index * file.Size()[1])
+            self._group.add(file)
 
     def __updateSubDirectory(self) -> None:
-        self.__page = 0
-        self.__subgroup.empty()
+        self._page = 0
+        self._subgroup.empty()
         
-        selected = self.__currentDirectory.Files[self.__index]
+        selected = self._currentDirectory.Files[self._index]
         if isinstance(selected, Directory):
-            for index, file in enumerate(selected.Files[self.__page * self.__itemPrePage : (self.__page + 1) * self.__itemPrePage]):
-                file.MoveTo(self.__rightArea.x, self.__rightArea.y + index * file.Size()[1])
-                self.__subgroup.add(file)
+            for index, file in enumerate(selected.Files[self._page * self._itemPrePage : (self._page + 1) * self._itemPrePage]):
+                file.MoveTo(self._rightArea.x, self._rightArea.y + index * file.Size()[1])
+                self._subgroup.add(file)
         elif isinstance(selected, ParentDirectory):
             pass
         elif isinstance(selected, File):
             with open(selected.GetName(), "r", encoding="utf-8") as f:
                 lines = f.readlines()
-                for index, line in enumerate(lines[self.__page * self.__itemPrePage : (self.__page + 1) * self.__itemPrePage]):
+                for index, line in enumerate(lines[self._page * self._itemPrePage : (self._page + 1) * self._itemPrePage]):
                     text = utils.FontManager.GetFont("SimHei", 32).render(line, True, (255, 255, 255))
-                    self.__subgroup.add(utils.Sprite(text, self.__rightArea.x, self.__rightArea.y + index * selected.Size()[1]))
+                    self._subgroup.add(utils.Sprite(text, self._rightArea.x, self._rightArea.y + index * selected.Size()[1]))
     
     def __leaveDirectory(self) -> None:
-        self.__group.empty()
+        self._group.empty()
     
-    def _onEnter(self, prevScene: utils.Scene | None) -> None:
-        self.__updateDirectory(self.__root)
+    def _onEnter(self, prevScene: utils.Scene | None, *params, **kwargs) -> None:
+        self.__updateDirectory(self._root)
         self.__updateSubDirectory()
     
-    def _onLeave(self) -> None:
-        pass
+    def _onLeave(self, nextScene: utils.Scene | None) -> None:
+        selectedFile = self._currentDirectory.Files[self._index + self._offset]
+
+        if type(selectedFile) is not File:
+            return
+        
+        if nextScene is None or nextScene.title not in ["Prepare", "Remember"]:
+            return
+        
+        user = utils.SceneManager.GetProperty("user")
+        if user is None or user == "":
+            return
+        
+        self._book = Book()
+        self._book.load(user, selectedFile.GetName())
+        self.SetProperty("book", self._book)
+        self._key_down_event = None
     
     def _onKeyDown(self, event: pygame.event.Event) -> None:
+        self._key_down_time = pygame.time.get_ticks()
+        self._key_down_event = event
+
         if event.key == pygame.K_UP:
             self.__prevItem()
         elif event.key == pygame.K_DOWN:
@@ -219,7 +239,7 @@ class BooksScene(utils.Scene):
         elif event.key == pygame.K_PAGEDOWN:
             self.__nextPage()
         elif event.key == pygame.K_RETURN:
-            file = self.__currentDirectory.Files[self.__index + self.__offset]
+            file = self._currentDirectory.Files[self._index + self._offset]
             if isinstance(file, Directory):
                 self.__updateDirectory(file)
                 self.__updateSubDirectory()
@@ -228,14 +248,11 @@ class BooksScene(utils.Scene):
                 self.__updateSubDirectory()
             else:
                 # select file
-                self.__selectFile = file
                 utils.SceneManager.Switch("Prepare")
-        self.__key_down_time = pygame.time.get_ticks()
-        self.__key_down_event = event
     
     def _onKeyUp(self, event: pygame.event.Event) -> None:
-        self.__key_down_event = None
-        self.__key_down_time = 0
+        self._key_down_event = None
+        self._key_down_time = 0
     
     def _onMouseMove(self, event: pygame.event.Event) -> None:
         pass
@@ -249,14 +266,11 @@ class BooksScene(utils.Scene):
     def _onUIEvent(self, event: pygame.Event) -> None:
         pass
     
-    def GetSelectedFile(self) -> str:
-        return self.__selectFile.GetName()
-    
     def Update(self, *args, **kwargs) -> bool:
-        if self.__key_down_event is not None and pygame.time.get_ticks() - self.__key_down_time > self.__key_dwon_interval:
-            self._onKeyDown(self.__key_down_event)
+        if self._key_down_event is not None and pygame.time.get_ticks() - self._key_down_time > self._key_dwon_interval:
+            self._onKeyDown(self._key_down_event)
         
-        self.__group.update(*args, **kwargs)
+        self._group.update(*args, **kwargs)
         return True
     
     def Draw(self, surface: pygame.Surface) -> None:
@@ -266,14 +280,14 @@ class BooksScene(utils.Scene):
         
         # draw current selected item
         pygame.draw.rect(surface, (255, 255, 0), (
-                self.__area.x - 2, 
-                self.__area.y + self.__index * self.__currentDirectory.Files[0].Size()[1] - 2, 
-                self.__area.width - 4, 
-                self.__currentDirectory.Files[0].Size()[1] + 4
+                self._area.x - 2, 
+                self._area.y + self._index * self._currentDirectory.Files[0].Size()[1] - 2, 
+                self._area.width - 4, 
+                self._currentDirectory.Files[0].Size()[1] + 4
             ), 1, 5
         )
-        self.__group.draw(surface)
-        self.__subgroup.draw(surface)
+        self._group.draw(surface)
+        self._subgroup.draw(surface)
         
 if __name__ == "__main__":
     pygame.init()

@@ -3,7 +3,8 @@
     "python.analysis.typeCheckingMode": "basic",
     "python.analysis.extraPaths": [
         "./",
-        "./ECDICT"
+        "./ECDICT",
+        "./pgu"
     ],
     "python.autoComplete.extraPaths": [
         "${workspaceFolder}",

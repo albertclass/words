@@ -17,7 +17,6 @@ class GameScene(utils.Scene):
         for i in range(8):
             way = charactor.subsurface((0, 1024 // 8 * i, 1024, 1024 // 8))
             anim = utils.SpriteFrameAnim(way, 1, 8)
-            anim.SetMode(utils.SpriteFrameAnimMode.ROW)
             anim.SetFrame(0)
             anim.MoveTo(100 + 1024 // 8 * i, 100)
             anim.Play(utils.SpriteFrameAnimPlayMode.LINEAR)
@@ -28,7 +27,7 @@ class GameScene(utils.Scene):
         for anim in self.animates:
             anim.SetFrame(0)
     
-    def _onLeave(self) -> None:
+    def _onLeave(self, nextScene: utils.Scene | None) -> None:
         pass
     
     def _onKeyDown(self, event: pygame.event.Event) -> None:

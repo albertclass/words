@@ -9,37 +9,30 @@ if __name__ == "__main__":
 
 import pygame
 import utils
-from scenes import BooksScene
 from core import Book, Word
-import stardict
-
-dictionary = stardict.StarDict("dict.db")
 
 class PrepareScene(utils.Scene):
     def __init__(self, size: tuple[int, int], span: int = 2, border: int = 1):
-        super().__init__("Prepare Scene", size, span, border)
-        self.__book: Book = Book("xuchenhao")
-        self.__iter: Iterable[Word] | None = None
-        self.__defaultFont: pygame.font.Font = utils.FontManager.GetFont("font/msyh.ttc", 24)
-        self.__CharacterFont: pygame.font.Font = utils.FontManager.GetFont("Consolas", 48)
-        self.__informationFont: pygame.font.Font = utils.FontManager.GetFont("Consolas", 18)
-        self.__phoneticFont: pygame.font.Font = utils.FontManager.GetFont("calibri", 24)
-        self.__group: pygame.sprite.Group = pygame.sprite.Group()
-        self.__statusbar: pygame.sprite.Group = pygame.sprite.Group()
-        self.__selectedFile: str = ""
-        
-    def _onEnter(self, prevScene: utils.Scene | None) -> None:
-        self.__selectedFile = 'books/中考考纲词汇【自动】/0001-0050.txt'
-        if isinstance(prevScene, BooksScene):
-            self.__selectedFile = prevScene.GetSelectedFile()
+        super().__init__("Prepare", size, span, border)
+        self._book: Book = Book()
+        self._iter: Iterable[Word] | None = None
+        self._defaultFont: pygame.font.Font = utils.FontManager.GetFont("font/msyh.ttc", 24)
+        self._characterFont: pygame.font.Font = utils.FontManager.GetFont("Consolas", 48)
+        self._informationFont: pygame.font.Font = utils.FontManager.GetFont("Consolas", 18)
+        self._phoneticFont: pygame.font.Font = utils.FontManager.GetFont("calibri", 24)
+        self._group: pygame.sprite.Group = pygame.sprite.Group()
+        self._statusbar: pygame.sprite.Group = pygame.sprite.Group()
+        self._font_color = (0,0,0)
+        self._board_color = (0,0,0)
+        self.background_image = pygame.image.load("images/background-3.png")
 
-        if self.__selectedFile is None or self.__selectedFile == "":
-            return
-        
-        if self.__book.load(self.__selectedFile, dictionary):
+    def _onEnter(self, prevScene: utils.Scene | None, *params, **kwargs) -> None:
+        book = utils.SceneManager.GetSceneProperty("Books", "book")
+        if isinstance(book, Book):
+            self._book = book
             self.Next()
     
-    def _onLeave(self) -> None:
+    def _onLeave(self, nextScene: utils.Scene | None) -> None:
         pass
     
     def _onKeyDown(self, event: pygame.event.Event) -> None:
@@ -64,55 +57,54 @@ class PrepareScene(utils.Scene):
         pass
     
     def UpdateStatus(self) -> None:
-        self.__statusbar.empty()
-        info = f"right {self.__currentWord.totalWrong} | wrong {self.__currentWord.totalRight} | bingo: {self.__currentWord.bingo} | proficiency: {self.__currentWord.proficiency} | delta: {self.__currentWord.delta}"
-        info_size = self.__informationFont.size(info)
+        self._statusbar.empty()
+        info = f"right {self.__currentWord.right} | wrong {self.__currentWord.wrong} | bingo: {self.__currentWord.bingo}"
+        info_size = self._informationFont.size(info)
         
         info_x = self.width - info_size[0] - self._span * 2
         if info_x < 0 :
             info_x = 0
         
-        background = pygame.Surface((self.width - self._span * 2 - self._border * 2, info_size[1] + self._span * 2 - self._border * 2))
-        background.fill((0,0,200))
+        # background = pygame.Surface((self.width - self._span * 2 - self._border * 2, info_size[1] + self._span * 2 - self._border * 2))
+        # background.fill((0,0,200))
         
-        self.__statusbar.add(utils.Sprite(background, self._span + self._border, self.height - info_size[1] - self._span * 3))
-        self.__statusbar.add(utils.Sprite(self.__informationFont.render(info, True, [255,255,255]), info_x , self.height - info_size[1] - self._span * 2))
+        # self._statusbar.add(utils.Sprite(background, self._span + self._border, self.height - info_size[1] - self._span * 3))
+        self._statusbar.add(utils.Sprite(self._informationFont.render(info, True, [255,255,255]), info_x , self.height - info_size[1] - self._span * 2))
 
     def Update(self, *args, **kwargs) -> bool:
-        if self.__iter is None:
-            self.__group.empty()
-            congratulation = self.__defaultFont.render("Congratulations! You have finished the exercise!", True, [255,255,255])
-            self.__group.add(utils.Sprite(congratulation, (self.width - congratulation.width) // 2, (self.height - congratulation.height) // 2))
+        if self._iter is None:
+            self._group.empty()
+            congratulation = self._defaultFont.render("Congratulations! You have finished the exercise!", True, [255,255,255])
+            self._group.add(utils.Sprite(congratulation, (self.width - congratulation.width) // 2, (self.height - congratulation.height) // 2))
         
         return True
     
     def Draw(self, surface: pygame.Surface) -> None:
-        surface.fill((0, 0, 0))
-        pygame.draw.rect(surface, (255, 255, 255), (self._span, self._span, self.width - self._span * 2, self.height - self._span * 2), 1, 5)
+        pygame.draw.rect(surface, self._board_color, (self._span, self._span, self.width - self._span * 2, self.height - self._span * 2), 1, 5)
         pygame.draw.line(surface,
-            (255, 255, 255),
+            self._board_color,
             (0 + self._span, self.height - self._span * 2 - 24), 
             (self.width - self._span - self._border, self.height - self._span * 2 - 24), 
             1
         )
         
-        self.__group.draw(surface)
-        self.__statusbar.draw(surface)
+        self._group.draw(surface)
+        self._statusbar.draw(surface)
 
     def Next(self) -> bool:
-        if self.__book is None:
+        if self._book is None:
             return False
         
-        if self.__iter is None:
-            self.__iter = iter(self.__book)
+        if self._iter is None:
+            self._iter = iter(self._book)
         
         try:
             # get next word
-            self.__currentWord = next(self.__book)
+            self.__currentWord = next(self._book)
             self.__currentWord.play()
-            self.__group.empty()
+            self._group.empty()
             
-            self.__group.add(utils.Sprite(self.__phoneticFont.render(self.__currentWord.content["phonetic"], True, [255,255,255]), 10, 40))
+            self._group.add(utils.Sprite(self._phoneticFont.render(self.__currentWord.content["phonetic"], True, self._font_color), 150, 190))
 
             if "translation" in self.__currentWord.content \
                 and self.__currentWord.content["translation"] is not None \
@@ -120,30 +112,27 @@ class PrepareScene(utils.Scene):
 
                 translations = self.__currentWord.content["translation"].split("\n")
                 for i, translation in enumerate(translations):
-                    self.__group.add(utils.Sprite(self.__defaultFont.render(translation, True, [255,255,255]), 10, 70 + i * 30))
+                    self._group.add(utils.Sprite(self._defaultFont.render(translation, True, self._font_color), 150, 230 + i * 40))
                     
-            answer = self.__CharacterFont.render(self.__currentWord.word, True, [200,0,100])
+            answer = self._characterFont.render(self.__currentWord.word, True, [200,0,100])
             answer_rect = answer.get_rect()
             pos_x = (self.width - answer_rect.width) // 2
             pos_y = (self.height - answer_rect.height) // 2
-            self.__group.add(utils.Sprite(answer, pos_x, pos_y))
+            self._group.add(utils.Sprite(answer, pos_x, pos_y))
 
-            progress = f"progress: {self.__book.index()}/{self.__book.length()} | round: {self.__book.round()}"
-            progress_size = self.__informationFont.size(progress)
+            progress = f"progress: {self._book.index()}/{self._book.length()} | round: {self._book.round()}"
+            progress_size = self._informationFont.size(progress)
             
             progress_x = self.width - self._span * 2 - progress_size[0]
             progress_y = self._span * 2
-            self.__group.add(utils.Sprite(self.__informationFont.render(progress, True, [255,255,255]), progress_x, progress_y))
+            self._group.add(utils.Sprite(self._informationFont.render(progress, True, self._font_color), progress_x, progress_y))
             
             self.UpdateStatus()
 
         except StopIteration:
-            self.__iter = None
+            self._iter = None
             
         return True
-
-    def GetSelectedFile(self) -> str:
-        return self.__selectedFile
 
 if __name__ == '__main__':
     pygame.init()
