@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 import pygame
 import pygame_gui
 
@@ -59,8 +59,11 @@ class Scene(ABC):
         return self._background_image
     
     @background_image.setter
-    def background_image(self, image: pygame.Surface) -> None:
-        self._background_image = pygame.transform.scale(image, self._size)
+    def background_image(self, image: Optional[pygame.Surface]) -> None:
+        if image is not None:
+            self._background_image = pygame.transform.scale(image, self._size)
+        else:
+            self._background_image = None
 
     @property
     def background_color(self) -> tuple[int,int,int]:
@@ -97,35 +100,30 @@ class Scene(ABC):
     def center(self) -> tuple[int,int]:
         return (self._size[0] // 2, self._size[1] // 2)
     
-    @abstractmethod
     def _onEnter(self, prevScene: Scene | None, *params, **kwargs) -> None:
         pass
     
-    @abstractmethod
     def _onLeave(self, nextScene: Scene | None) -> None:
         pass
     
-    @abstractmethod
+    def _onEvent(self, event: pygame.Event) -> bool:
+        return False
+    
     def _onKeyDown(self, event: pygame.event.Event) -> None:
         pass
     
-    @abstractmethod
     def _onKeyUp(self, event: pygame.event.Event) -> None:
         pass
     
-    @abstractmethod
     def _onMouseMove(self, event: pygame.event.Event) -> None:
         pass
     
-    @abstractmethod
     def _onMouseButtonDown(self, event: pygame.event.Event) -> None:
         pass
     
-    @abstractmethod
     def _onMouseButtonUp(self, event: pygame.event.Event) -> None:
         pass
     
-    @abstractmethod
     def _onUIEvent(self, event: pygame.event.Event) -> None:
         pass
     
@@ -146,6 +144,12 @@ class Scene(ABC):
     def SetProperty(self, name: str, value: Any) -> None:
         self._properties[name] = value
 
+    def SetProperties(self, properties: dict[str, Any]) -> None:
+        self._properties.update(properties)
+    
+    def GetProperties(self, *names: str) -> dict[str, Any]:
+        return {name: self._properties.get(name, None) for name in names}
+    
     def DelProperty(self, name: str) -> None:
         if name in self._properties:
             del self._properties[name]
@@ -195,12 +199,13 @@ class SceneManager:
             return False
         
         for event in pygame.event.get():
-            if event.type in events:
+            if self.currentScene._onEvent(event):
+                continue
+            elif event.type in events:
                 self.currentScene._onUIEvent(event)
-            elif isinstance(self.currentScene._uimanager, pygame_gui.UIManager) and self.currentScene.show_ui:
+            elif self.currentScene.show_ui and self.currentScene._uimanager.process_events(event):
                 # Process events for the UI manager if the scene has UI
-                if self.currentScene._uimanager.process_events(event):
-                    continue
+                continue
 
             if event.type == pygame.QUIT:
                 return False
@@ -235,16 +240,34 @@ class SceneManager:
         
         pygame.display.update()
 
-    def SetSceneProperty(self, scene_name: str, properties: dict[str, Any]):
+    def SetSceneProperty(self, scene_name: str, key: str, value: Any) -> bool:
         if scene_name in self.scenes:
             scene = self.scenes[scene_name]
-            for key, value in properties.items():
-                scene.SetProperty(key, value)
+            scene.SetProperty(key, value)
+            return True
+        
+        return False
 
-    def GetSceneProperty(self, scene_name: str, key: str):
+    def GetSceneProperty(self, scene_name: str, key: str) -> Any:
         if scene_name in self.scenes:
             scene = self.scenes[scene_name]
             return scene.GetProperty(key)
+        return None
+
+    def SetSceneProperties(self, scene_name: str, properties: dict[str, Any]) -> bool:
+        if scene_name in self.scenes:
+            scene = self.scenes[scene_name]
+            scene.SetProperties(properties)
+
+            return True
+        
+        return False
+
+    def GetSceneProperties(self, scene_name: str, *keys: str) -> dict[str, Any] | None:
+        if scene_name in self.scenes:
+            scene = self.scenes[scene_name]
+            return scene.GetProperties(*keys)
+        
         return None
 
     def DelSceneProperty(self, scene_name: str, key: str):

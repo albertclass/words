@@ -27,17 +27,33 @@ class PrepareScene(utils.Scene):
         self.background_image = pygame.image.load("images/background-3.png")
 
     def _onEnter(self, prevScene: utils.Scene | None, *params, **kwargs) -> None:
-        book = utils.SceneManager.GetSceneProperty("Books", "book")
-        if isinstance(book, Book):
-            self._book = book
-            self.Next()
+        round = utils.SceneManager.GetSceneProperty("Books", "round")
+        loadargs  = utils.SceneManager.GetSceneProperty("Books", "loadargs")
+
+        if round is None or type(round) is not int:
+            utils.SceneManager.Switch("Books")
+            return
+        
+        if loadargs is None or type(loadargs) not in [list, tuple]:
+            utils.SceneManager.Switch("Books")
+            return
+        
+        if round >= len(loadargs):
+            utils.SceneManager.Switch("Game")
+            return
+        
+        utils.SceneManager.SetSceneProperty("Books", "round", round + 1)
+        self._book = Book()
+        self._book.load(*loadargs[round])
+
+        self.Next()
     
     def _onLeave(self, nextScene: utils.Scene | None) -> None:
         pass
     
     def _onKeyDown(self, event: pygame.event.Event) -> None:
         if event.key == pygame.K_ESCAPE: 
-            utils.SceneManager.Switch("Remember")
+            utils.SceneManager.Switch("Remember", self._book)
         elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
             self.Next()
     
@@ -104,7 +120,8 @@ class PrepareScene(utils.Scene):
             self.__currentWord.play()
             self._group.empty()
             
-            self._group.add(utils.Sprite(self._phoneticFont.render(self.__currentWord.content["phonetic"], True, self._font_color), 150, 190))
+            if "phonetic" in self.__currentWord.content:
+                self._group.add(utils.Sprite(self._phoneticFont.render(self.__currentWord.content["phonetic"], True, self._font_color), 150, 190))
 
             if "translation" in self.__currentWord.content \
                 and self.__currentWord.content["translation"] is not None \

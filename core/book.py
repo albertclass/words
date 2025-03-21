@@ -3,6 +3,7 @@ import random
 import stardict
 import logging
 import hashlib
+from datetime import datetime
 from . import database
 from .word import Word
 
@@ -59,7 +60,7 @@ class Book:
     def isEmpty(self):
         return len(self._words) == 0
     
-    def load(self, user: str, pathname: str, totalWordCount = 200, newWordCount: int = 50) -> bool:
+    def load(self, user: str, pathname: str, totalWordCount = 200, newWordCount: int = 50, before: datetime = datetime.now()) -> bool:
         '''
         加载背过的单词书进行复习
         '''
@@ -69,7 +70,7 @@ class Book:
                 return False
             
             newWords = self._table.QueryNewWords(newWordCount)
-            reviewWords = self._table.QueryReviewWords(totalWordCount - len(newWords))
+            reviewWords = self._table.QueryReviewWords(totalWordCount - len(newWords), before)
             # audios = {}
             for word in set([row[0] for row in newWords + reviewWords]):
                 w = Word(word, dictionary.query(word))
@@ -97,6 +98,7 @@ class Book:
             logging.error(f"{type(e)} - {e}")
             return False
         
+        random.shuffle(self._words)
         return True
     
     def right(self, word: Word):
@@ -123,8 +125,10 @@ class Book:
             self._round += 1
             words : list[Word] = []
             for idx, word in enumerate(self._words):
-                if word.wrong < word.right:
+                # 如果单词已经背会了，就不再放入列表中
+                if word.wrong < word.right or word.bingo > 2:
                     if self._table is not None:
+                        # 更新数据库，记录错误和正确的次数
                         self._table.IncRight(word.word, word.right)
                         self._table.IncWrong(word.word, word.wrong)
                         self._table.IncBingo(word.word, 1)

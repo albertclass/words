@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os
 import sys
-import random
+from turtle import update
 from typing import Iterable
 
 if __name__ == "__main__":
@@ -30,8 +30,6 @@ class RememberScene(utils.Scene):
         self._word_waiting_from: int = 0
         self._word_status: int = 0 # 0: enter， 1：right， 2：waiting for next
         self._currentSequence = None
-        self._firework_lasttime = pygame.time.get_ticks()
-        self._fireworks = utils.Fireworks()
         self._font_color = (0,0,0)
         self._border_color = (0,0,0)
         self._statusbar_color = (50, 50, 178)
@@ -57,16 +55,19 @@ class RememberScene(utils.Scene):
         self._charactor.move(0, 0)
 
     def _onEnter(self, prevScene: utils.Scene | None, *params, **kwargs) -> None:
-        book = utils.SceneManager.GetSceneProperty("Books", "book")
-        if isinstance(book, Book):
-            self._book = book
-            self.Next()
+        book = params[0] if len(params) > 0 else None
+        if not isinstance(book, Book):
+            utils.SceneManager.Switch("Books")
+            return
+
+        self._book = book
+        self.Next()
 
         self._charactor.move(0, 300)
 
     def _onLeave(self, nextScene: utils.Scene | None) -> None:
         pass
-    
+
     def _onKeyDown(self, event: pygame.event.Event) -> None:
         if self._currentSequence is None:
             utils.SceneManager.Switch("Books")
@@ -125,7 +126,7 @@ class RememberScene(utils.Scene):
             if self._wrong == 1:
                 # play the pronunciation, if wrong more than 1 times
                 self.__currentWord.play()
-            if self._wrong == 2:
+            if self._wrong == 2 and "phonetic" in self.__currentWord.content:
                 # show the phonetic symbol, if wrong more than 2 times
                 pron = utils.Sprite(self._phoneticFont.render(self.__currentWord.content["phonetic"], True, self._font_color), 150, 190)
                 self._group.add(pron)
@@ -139,8 +140,9 @@ class RememberScene(utils.Scene):
                 self._crack = True
         elif not self._crack:
             # 显示音标
-            pron = utils.Sprite(self._phoneticFont.render(self.__currentWord.content["phonetic"], True, self._font_color), 150, 190)
-            self._group.add(pron)
+            if "phonetic" in self.__currentWord.content:
+                pron = utils.Sprite(self._phoneticFont.render(self.__currentWord.content["phonetic"], True, self._font_color), 150, 190)
+                self._group.add(pron)
             # 播放单词发音
             self.__currentWord.play()
             # 回答正确，正确次数 +1
@@ -210,29 +212,14 @@ class RememberScene(utils.Scene):
         self._statusbar.add(utils.Sprite(self._informationFont.render(info, True, self._font_color), info_x , self.height - info_size[1] - self._span * 2))
 
     def Update(self, *args, **kwargs) -> bool:
-        if self._currentSequence is None:
-            # 全部背完了， 开始放烟花
-            if self._firework_lasttime + 1000 < pygame.time.get_ticks():
-                self._firework_lasttime = pygame.time.get_ticks()
-                self._fireworks.add(
-                    random.randint(self.width // 4, self.width // 4 * 3), 
-                    random.randint(self.height // 4, self.height // 2)
-                )
-                
-            self._fireworks.update()
-            
-        
         if self._word_status == 1:
             self._word_status = 2
             self._word_waiting_from = pygame.time.get_ticks()
             
         if self._word_status == 2 and pygame.time.get_ticks() - self._word_waiting_from > 1000:
-            self.Next()
-            if self._currentSequence is None:
-                # 背完了，更新状态
-                self._group.empty()
-                congratulation = self._defaultFont.render("Congratulations! You have finished the exercise!", True, self._font_color)
-                self._group.add(utils.Sprite(congratulation, (self.width - congratulation.width) // 2, (self.height - congratulation.height) // 2))
+            if self.Next() is False:
+                utils.SceneManager.Switch("Prepare")
+                return False
 
         self._charactor.update()
         self._group.update()
@@ -251,7 +238,6 @@ class RememberScene(utils.Scene):
         self._group.draw(surface)
         self._charactor.draw(surface)
         self._statusbar.draw(surface)
-        self._fireworks.draw(surface)
 
 
 if __name__ == "__main__":

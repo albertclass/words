@@ -1,6 +1,6 @@
 import sqlite3
 from typing import Any, Tuple
-
+from datetime import datetime
 _is_table_exists_query = """
     SELECT name FROM sqlite_master WHERE type='table' AND name=?;
 """
@@ -49,8 +49,8 @@ _book_load_query = """
 _book_review_query = """
     SELECT word, wrong, right, bingo
     FROM {tablename}
-    WHERE wrong > right OR bingo < 3  -- 假设bingo小于3的单词需要复习
-    ORDER BY wrong DESC, bingo ASC
+    WHERE datetime(update_time) < ? AND (wrong > right OR bingo < 3)  -- 假设bingo小于3的单词需要复习
+    ORDER BY update_time DESC, bingo ASC
     LIMIT ?;
 """
 
@@ -141,5 +141,5 @@ class BookTable(Table):
     def QueryNewWords(self, count: int) -> list[Any]:
         return self._database.query(_book_load_query.format(tablename=self.tablename), (count,))
 
-    def QueryReviewWords(self, count: int) -> list[Any]:
-        return self._database.query(_book_load_query.format(tablename=self.tablename), (count,))
+    def QueryReviewWords(self, count: int, before: datetime) -> list[Any]:
+        return self._database.query(_book_review_query.format(tablename=self.tablename), (before, count))

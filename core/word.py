@@ -1,3 +1,4 @@
+from io import BytesIO
 import os
 import pygame
 import utils
@@ -10,9 +11,20 @@ class Word:
         self.bingo: int = 0
         self.content: dict[str, str] = content or {}
         self.sound: pygame.mixer.Sound | None = None
-        ret, sound = utils.SimpleTTS().load(self.word)
-        if ret:
+        filename = "phonetic/" + self.word[0] + "/" + self.word + ".mp3"
+        if not os.path.exists(filename):
+            if not os.path.exists("phonetic/" + self.word[0]):
+                os.makedirs("phonetic/" + self.word[0])
+            
+            print(f"Download {self.word} audio file to {filename}.")
+            ret, sound = utils.SimpleTTS().load(self.word)
+            if ret and sound is not None:
+                with open(filename, "wb") as f:
+                    f.write(sound.getvalue())
             self.sound = pygame.mixer.Sound(sound)
+        else:
+            with open(filename, "rb") as f:
+                self.sound = pygame.mixer.Sound(BytesIO(f.read()))
         
     def play(self):
         if self.sound is not None:

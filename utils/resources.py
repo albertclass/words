@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hashlib import sha1
 import os
 import io
 import sys
@@ -8,6 +9,7 @@ import threading
 import queue
 import pygame
 from .tts import SimpleTTS
+from typing import Optional
 
 class ResourceManager:
     _instance = None
@@ -26,6 +28,11 @@ class ResourceManager:
         self._loading: list[threading.Thread] = []
         self._search_paths: list[tuple[str, zipfile.ZipFile]] = []
         self._search_queue: queue.Queue = queue.Queue(64)
+        self._fonts: dict[str, pygame.font.Font] = {}
+        self._textures: dict[str, pygame.Surface] = {}
+        self._sounds: dict[str, pygame.mixer.Sound] = {}
+        self._files: dict[str, io.BytesIO] = {}
+
         self.__initlized = True
     
     def _async_init(self, path: str | os.PathLike) -> threading.Thread:
@@ -87,13 +94,19 @@ class ResourceManager:
                 return False
         return True
 
-    def loadSound(self, path: str | os.PathLike[str]) -> pygame.mixer.Sound | None:
+    def loadSound(self, path: str | os.PathLike[str], name: Optional[str] = None) -> pygame.mixer.Sound | None:
         try:
+            if name is not None and name in self._sounds:
+                return self._sounds[name]
+            
             if not pygame.mixer.get_init():
                 return None
             
             if os.path.exists(path):
-                return pygame.mixer.Sound(path)
+                sound = pygame.mixer.Sound(path)
+                if name is not None:
+                    self._sounds[name] = sound
+                return sound
             
             zfile, subpath = self._get(path)
             if zfile is None or subpath is None:
@@ -101,15 +114,28 @@ class ResourceManager:
             
             with zfile.open(subpath) as file:
                 buffer = io.BytesIO(file.read())
-                return pygame.mixer.Sound(buffer)
+                sound = pygame.mixer.Sound(buffer)
+                if name is not None:
+                    self._sounds[name] = sound
+                return sound
+            
         except Exception as e:
             logging.error(f"Error: {type(e)} - {e}")
             return None
-        
-    def loadImage(self, path: str | os.PathLike[str]) -> pygame.Surface | None:
+    
+    def getSound(self, name: str) -> pygame.mixer.Sound | None:
+        return self._sounds.get(name, None)
+    
+    def loadImage(self, path: str | os.PathLike[str], name: Optional[str] = None) -> pygame.Surface | None:
         try:
+            if name is not None and name in self._textures:
+                return self._textures[name]
+            
             if os.path.exists(path):
-                return pygame.image.load(path)
+                tex = pygame.image.load(path)
+                if name is not None:
+                    self._textures[name] = tex
+                return tex
             
             zfile, subpath = self._get(path)
             if zfile is None:
@@ -117,27 +143,80 @@ class ResourceManager:
             
             with zfile.open(str(subpath)) as file:
                 buffer = io.BytesIO(file.read())
-                return pygame.image.load(buffer, str(subpath))
+                tex = pygame.image.load(buffer, str(subpath))
+                if name is not None:
+                    self._textures[name] = tex
+                return tex
+            
         except Exception as e:
             logging.error(f"Error: {type(e)} - {e}")
             return None
 
-    def loadFile(self, path: str | os.PathLike[str]) -> io.BytesIO | None:
+    def getImage(self, name: str) -> pygame.Surface | None:
+        return self._textures.get(name, None)
+    
+    def loadFile(self, path: str | os.PathLike[str], name: Optional[str] = None) -> io.BytesIO | None:
         try:
+            if name is not None and name in self._files:
+                return self._files[name]
+            
             if os.path.exists(path):
                 with open(path, "rb") as file:
-                    return io.BytesIO(file.read())
+                    file = io.BytesIO(file.read())
+                    if name is not None:
+                        self._files[name] = file
+                    return file
             
             zfile, subpath = self._get(path)
             if zfile is None:
                 return None
             
             with zfile.open(str(subpath)) as file:
-                return io.BytesIO(file.read())
+                file = io.BytesIO(file.read())
+                if name is not None:
+                    self._files[name] = file
+                return file
+            
         except Exception as e:
             logging.error(f"Error: {type(e)} - {e}")
             return None
-        
+    
+    def getFile(self, name: str) -> io.BytesIO | None:
+        return self._files.get(name, None)
+    
+    def loadFont(self, path: str | os.PathLike[str], size: int, name: Optional[str] = None) -> pygame.font.Font | None:
+        try:
+            if name is None:
+                name = os.path.basename(path) + "-" + str(size)
+
+            if name in self._fonts:
+                return self._fonts[name]
+            
+            if os.path.exists(path):
+                font = pygame.font.Font(path, size)
+                self._fonts[name] = font
+                return font
+            
+            zfile, subpath = self._get(path)
+            if zfile is None:
+                return None
+            
+            with zfile.open(str(subpath)) as file:
+                buffer = io.BytesIO(file.read())
+                font = pygame.font.Font(buffer, size)
+                self._fonts[name] = font
+                return font
+            
+        except Exception as e:
+            logging.error(f"Error: {type(e)} - {e}")
+            return None
+    
+    def getFont(self, name: str) -> pygame.font.Font | None:
+        return self._fonts.get(name, None)
+    
+    def defaultFont(self) -> pygame.font.Font | None:
+        return self.loadFont("font/msyh.ttc", 16, "default")
+    
 if __file__ == "__main__":
     resMgr = ResourceManager()
     resMgr.add("phonetic/en.zip")

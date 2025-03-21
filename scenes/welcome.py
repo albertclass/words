@@ -13,11 +13,11 @@ class WelcomeScene(utils.Scene):
         self.background_image = pygame.image.load("images/startup.png")
         
         font = utils.FontManager.GetFont("font/msyh.ttc", 64)
-        text = font.render("兔哥背单词", True, (255, 255, 255))
+        text = font.render("我爱背单词", True, (153, 213, 240))
         # pygame.draw.rect(text, (128, 128, 128), (0, 0, text.get_width(), text.get_height()), 1, 5)
         
-        pos = utils.CenterPos(text, size)
-        welcome = utils.Sprite(text, pos[0], pos[1])
+        pos_x = utils.CenterPosX(text, size)
+        welcome = utils.Sprite(text, pos_x, 100)
         self._application.add(welcome)
         
         versionFont = utils.FontManager.GetFont("font/msyh.ttc", 16)
@@ -27,48 +27,31 @@ class WelcomeScene(utils.Scene):
         self._application.add(versionSprite)
         
         tipsFont = utils.FontManager.GetFont("华文楷体", 32)
-        tipsFontSize = tipsFont.size("按任意键开始")
-        
         frame = 25
         self._tips = pygame.sprite.Group()
-        self._loadResourceText = pygame.Surface((tipsFontSize[0], tipsFontSize[1] * frame))
-        self._loadResourceText.set_colorkey((0, 0, 0))
-        
-        for i in range(frame):
-            color = 127 + i * (128 // frame)
-            self._loadResourceText.blit(tipsFont.render("正在加载资源...", True, (color, color, color)), (0, i * tipsFontSize[1]))
             
-        self._tipsText = pygame.Surface((tipsFontSize[0], tipsFontSize[1] * frame))
-        self._tipsText.set_colorkey((0, 0, 0))
-        # tipsText.fill((0, 0, 0))
+        tex = tipsFont.render("Press any key to continue ...", True, (0, 0, 0))
+
+        self._tipsTex = pygame.Surface((tex.width, tex.height * frame))
+        self._tipsTex.set_colorkey((0, 0, 0))
 
         for i in range(frame):
             color = 127 + i * (128 // frame)
-            self._tipsText.blit(tipsFont.render("按任意键开始", True, (color, color, color)), (0, i * tipsFontSize[1]))
+            tex = tipsFont.render("Press any key to continue ...", True, (color, color, color))
+            self._tipsTex.blit(tex, (0, i * tex.height))
         
-        pos = utils.CenterPos(self._loadResourceText, size)
-        self._loadResourceTextAnim = utils.SpriteFrameAnim(self._loadResourceText, 
+
+        pos = utils.CenterPos(self._tipsTex, size)
+        self._tipsTextAnim = utils.SpriteFrameAnim(self._tipsTex, 
             frame, # row
             1, # col
             mode = utils.SpriteFrameAnimMode.COL, # frame mode
             interval = 0.04
         )
-
-        self._loadResourceTextAnim.MoveTo(pos[0], self.height - tipsFontSize[1])
-        self._loadResourceTextAnim.Play(utils.SpriteFrameAnimPlayMode.REVERSE)
-
-        pos = utils.CenterPos(self._tipsText, size)
-        self._tipsTextAnim = utils.SpriteFrameAnim(self._tipsText, 
-            frame, # row
-            1, # col
-            mode = utils.SpriteFrameAnimMode.COL, # frame mode
-            interval = 0.04
-        )
-        self._tipsTextAnim.MoveTo(pos[0], self.height - tipsFontSize[1])
+        self._tipsTextAnim.MoveTo(pos[0], self.height - tex.height - 20)
         self._tipsTextAnim.Play(utils.SpriteFrameAnimPlayMode.REVERSE)
 
         self._tips_added = False
-        self._tips.add(self._loadResourceTextAnim)
         
     def _onEnter(self, prevScene: utils.Scene | None) -> None:
         # utils.ResourceManager.add("phonetic/en.zip")

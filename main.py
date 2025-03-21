@@ -1,7 +1,7 @@
 import pygame
 from scenes.login import LoginScene
 import utils
-from scenes import WelcomeScene, BooksScene, PrepareScene, RememberScene
+from scenes import WelcomeScene, BooksScene, PrepareScene, RememberScene, GameScene
 
 _screen_size = (1280, 1024)
 if __name__ == "__main__":
@@ -11,10 +11,10 @@ if __name__ == "__main__":
     
     utils.SceneManager.AddScene("Welcome", WelcomeScene(_screen_size), True)
     utils.SceneManager.AddScene("Login", LoginScene(_screen_size, "login", theme_path="themes.json"))
-    utils.SceneManager.AddScene("Books", BooksScene(_screen_size, "books"))
+    utils.SceneManager.AddScene("Books", BooksScene(_screen_size, "books", theme_path="themes.json"))
     utils.SceneManager.AddScene("Prepare", PrepareScene(_screen_size))
     utils.SceneManager.AddScene("Remember", RememberScene(_screen_size))
-    # utils.SceneManager.AddScene("Game", RememberScene(_screen_size))
+    utils.SceneManager.AddScene("Game", GameScene(_screen_size))
     clock = pygame.time.Clock()
     while utils.SceneManager.Update():
         utils.SceneManager.Draw(screen)
